@@ -71,7 +71,8 @@ td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 <div class="band" style="padding-bottom:0">
   <h1>DizTudo</h1>
   <p class="mute" id="sub">Do edital ao plano, das questões às lacunas.</p>
-  <div class="fig" id="fig"><svg id="metro" role="img" aria-label="Linha do edital: disciplinas e domínio atual"></svg></div>
+  <div class="fig" id="fig"><svg id="metro" role="img" aria-label="Linha do edital: disciplinas e domínio medido"></svg></div>
+  <p class="small mute" id="figLeg" style="margin:0">Domínio por disciplina, medido pelas suas respostas às questões. “–” = ainda sem respostas.</p>
 </div>
 <nav role="tablist">
   <button role="tab" data-tab="edital" aria-selected="true"><i>1</i>Edital</button>
@@ -90,9 +91,9 @@ td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
     <div><label for="prova">Data da prova</label><input id="prova" type="date"></div>
   </div>
   <label for="prog">Conteúdo programático – uma disciplina por linha: <span class="mute">Disciplina | nº de questões: tópico; tópico*; …</span> (asterisco = alta incidência na banca)</label>
-  <textarea id="prog" spellcheck="false"></textarea>
-  <p class="note">O conteúdo inicial é um exemplo (Analista Judiciário, área judiciária). Substitua pelo do seu edital.</p>
-  <div class="row"><button class="btn" id="aplicar" type="button">Aplicar edital</button><span id="editalMsg" class="small mute"></span></div>
+  <textarea id="prog" spellcheck="false" placeholder="Língua Portuguesa | 20: Interpretação de textos*; Concordância; Crase&#10;Direito Constitucional | 15: Direitos fundamentais*; Organização do Estado"></textarea>
+  <p class="note">Use o edital do seu concurso: cole o conteúdo, envie o PDF abaixo ou preencha com um exemplo para conhecer o sistema.</p>
+  <div class="row"><button class="btn" id="aplicar" type="button">Aplicar edital</button><button class="btn alt" id="exemplo" type="button">Preencher com um exemplo</button><span id="editalMsg" class="small mute"></span></div>
   <h3>Carregar o edital</h3>
   <div class="grid">
     <div><label for="link">Link do edital (opcional)</label><input id="link" type="url" placeholder="https://"></div>
@@ -196,9 +197,10 @@ const pct=x=>Math.round(x*100)+'%';
 
 let S;
 const KEY='diztudo-v1';
-function padrao(){const d=hoje();d.setDate(d.getDate()+90);return{cargo:'Analista Judiciário – Área Judiciária',banca:'cebraspe',prova:ds(d),prog:EXEMPLO,disc:[],horas:[4,2,2,2,2,2,4],prof:{},done:{},estudos:{}}}
+function padrao(){const d=hoje();d.setDate(d.getDate()+90);return{cargo:'',banca:'cebraspe',prova:'',prog:'',disc:[],horas:[4,2,2,2,2,2,4],prof:{},done:{},estudos:{}}}
 S=REMOTO.dados&&REMOTO.dados.disc?REMOTO.dados:null;
 if(!S||!S.disc)S=padrao();
+if(S.prog===EXEMPLO&&!Object.keys(S.prof||{}).length&&/^Analista Judiciário/.test(S.cargo||'')){S.prog='';S.disc=[];S.cargo='';S.prova=''}
 function salvar(){REMOTO.salvar('dados',S)}
 
 function parse(txt){const out=[];txt.split('\n').forEach((l,i)=>{const m=l.match(/^(.+?)\s*\|\s*(\d+)\s*:\s*(.+)$/);if(!m)return;
@@ -226,7 +228,8 @@ $('cargo').value=S.cargo;$('banca').value=S.banca;$('prova').value=S.prova;$('pr
 ['cargo','banca','prova'].forEach(id=>$(id).addEventListener('change',()=>{S[id]=$(id).value;salvar();render()}));
 $('aplicar').addEventListener('click',()=>{const d=parse($('prog').value);if(!d.length){$('editalMsg').textContent='Nenhuma linha no formato esperado.';return}
   S.prog=$('prog').value;S.disc=d;salvar();$('editalMsg').textContent=`${d.length} disciplinas, ${d.reduce((a,x)=>a+x.top.length,0)} tópicos.`;render()});
-if(!S.disc.length){S.disc=parse(S.prog);salvar()}
+if(!S.disc.length&&S.prog){S.disc=parse(S.prog);salvar()}
+$('exemplo').addEventListener('click',()=>{$('prog').value=EXEMPLO;if(!$('cargo').value){$('cargo').value=S.cargo='Analista Judiciário – Área Judiciária (exemplo)'}$('editalMsg').textContent='Exemplo preenchido. Clique em Aplicar edital.';salvar()});
 
 // perfil
 function rPerfil(){
@@ -321,17 +324,18 @@ $('zerar').addEventListener('click',()=>{if($('zerar').dataset.c){S.prof={};salv
 // linha do metrô
 const svg=$('metro');
 function desenha(){const W=svg.clientWidth,H=svg.clientHeight;if(!W)return;const n=S.disc.length;if(!n){svg.innerHTML='';return}
-  const pad=Math.min(60,W/(n*2)),y=52,step=n>1?(W-2*pad)/(n-1):0,estreito=W<520;let s='';
+  const pad=Math.max(28,Math.min(60,W/(n*2))),y=52,step=n>1?(W-2*pad)/(n-1):0,estreito=W<520;let s='';
   S.disc.forEach((d,i)=>{if(i<n-1){const x1=pad+i*step,x2=pad+(i+1)*step;s+=`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${CORES[i%8]}" stroke-width="12" stroke-linecap="round"/>`}});
   const tops=topicos();
-  S.disc.forEach((d,i)=>{const x=n>1?pad+i*step:W/2,ts=tops.filter(t=>t.d===d),m=ts.reduce((a,t)=>a+t.p,0)/Math.max(1,ts.length);
-    s+=`<circle cx="${x}" cy="${y}" r="20" fill="var(--bg)" stroke="${CORES[i%8]}" stroke-width="7"/><circle cx="${x}" cy="${y}" r="${Math.max(2,13*m)}" fill="${CORES[i%8]}"/>`;
-    s+=`<text x="${x}" y="${y+46}" text-anchor="middle" font-family="Figtree" font-weight="800" font-size="15" fill="currentColor">${pct(m)}</text>`;
-    if(!estreito)s+=`<text x="${x}" y="${y+66}" text-anchor="middle" font-family="Figtree" font-size="13" fill="currentColor" opacity=".7">${esc(d.nome.replace(/^(Direito|Língua)\s+/,'').slice(0,22))}</text>`});
+  S.disc.forEach((d,i)=>{const x=n>1?pad+i*step:W/2,ts=tops.filter(t=>t.d===d&&S.prof[t.id]&&S.prof[t.id].n>0),m=ts.length?ts.reduce((a,t)=>a+t.p,0)/ts.length:null;
+    s+=`<circle cx="${x}" cy="${y}" r="20" fill="var(--bg)" stroke="${CORES[i%8]}" stroke-width="7"/>`+(m==null?'':`<circle cx="${x}" cy="${y}" r="${Math.max(2,13*m)}" fill="${CORES[i%8]}"/>`);
+    s+=`<text x="${x}" y="${y+46}" text-anchor="middle" font-family="Figtree" font-weight="800" font-size="15" fill="currentColor">${m==null?'–':pct(m)}</text>`;
+    const nm=d.nome.replace(/^(Noções de |Direito |Língua )/,''),lim=estreito?Math.max(6,Math.floor(step/8)):22;
+    s+=`<text x="${x}" y="${y+66}" text-anchor="middle" font-family="Figtree" font-size="${estreito?11:13}" fill="currentColor" opacity=".7">${esc(nm.length>lim?nm.slice(0,lim-1)+'…':nm)}</text>`});
   svg.innerHTML=s;svg.style.color='var(--ink)'}
 const ro=new ResizeObserver(desenha);ro.observe(svg);
 
-function render(){$('sub').textContent=`${S.cargo} · ${BANCAS[S.banca].nome}${S.prova?' · prova em '+S.prova.split('-').reverse().join('/'):''}`;
+function render(){$('sub').textContent=S.disc.length?[S.cargo||'Cargo não informado',BANCAS[S.banca].nome,S.prova?'prova em '+S.prova.split('-').reverse().join('/'):''].filter(Boolean).join(' · '):'Comece pelo edital do seu concurso, na aba 1.';$('fig').hidden=!S.disc.length;
   if(aba==='provas')rProvas();if(aba==='perfil')rPerfil();if(aba==='plano')rPlano();if(aba==='questoes'){rTopSel();rLista()}if(aba==='lacunas')rLacunas();desenha()}
 render();
 
