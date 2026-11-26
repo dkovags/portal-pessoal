@@ -442,7 +442,7 @@ const $=id=>document.getElementById(id);
 const gmsg=$('gateMsg'),gbtn=$('entrar');
 function pedirLogin(txt){gmsg.textContent=txt;gbtn.hidden=false;gbtn.disabled=false}
 let mod;
-try{mod=await import('https://esm.sh/@neon/neon-js')}catch(e){try{mod=await import('https://esm.sh/@neondatabase/neon-js')}catch(e2){gmsg.textContent='Não foi possível carregar o login. Recarregue a página.';throw e2}}
+try{mod=await import('https://esm.sh/@neon/neon-js@0.10.2')}catch(e){try{mod=await import('https://esm.sh/@neondatabase/neon-js')}catch(e2){gmsg.textContent='Não foi possível carregar o login. Recarregue a página.';throw e2}}
 const client=mod.createClient(DB);
 const aqui=location.origin+location.pathname;
 gbtn.addEventListener('click',async()=>{gbtn.disabled=true;gmsg.textContent='Abrindo o Google…';
