@@ -22,6 +22,10 @@
   fetch(pasta + 'index.html?carregar=1', { cache: 'no-store' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
     .then(function (html) {
+      // endereços da página ficam absolutos já no texto: o navegador começa a baixar CSS e scripts
+      // antes de aplicar o <base>, e buscaria tudo neste endereço
+      html = html.replace(/(\s(?:src|href)\s*=\s*["'])\/(?!\/)/gi, '$1https://kovags.com/')
+                 .replace(/(\s(?:src|href)\s*=\s*["'])(?![a-z][a-z0-9+.-]*:|\/|#|["'])/gi, '$1' + pasta);
       var base = '<base href="' + pasta + '">';
       var junto = function (m) { return m + base; };
       html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, junto)
