@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f7f7f2">
+<title>kovags</title>
+<style>html,body{margin:0;background:#f7f7f2;color:#5a5a52;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}#msg{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:0 24px;text-align:center}#msg a{color:inherit}</style>
+</head>
+<body>
+<div id="msg">Carregando…</div>
+<script>
+// Porta de entrada de pessoal.kovags.com. As páginas continuam publicadas no cPanel, em
+// kovags.com/pessoal/ (inclusive pelo publicar.php); aqui se busca a página do caminho pedido
+// e ela é aberta neste endereço. O <base> faz os links e arquivos da página apontarem para lá.
+(function () {
+  var ORIGEM = 'https://kovags.com/pessoal';
+  var caminho = location.pathname.replace(/\/index\.html?$/i, '/');
+  // arquivo que não é página (imagem, PDF etc.): abre direto da origem
+  if (/\.[a-z0-9]+$/i.test(caminho)) { location.replace(ORIGEM + caminho + '?carregar=1'); return; }
+  var pasta = ORIGEM + caminho.replace(/\/?$/, '/');
+  fetch(pasta + 'index.html?carregar=1', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(function (html) {
+      var base = '<base href="' + pasta + '">';
+      var junto = function (m) { return m + base; };
+      html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, junto)
+           : /<html[^>]*>/i.test(html) ? html.replace(/<html[^>]*>/i, junto)
+           : base + html;
+      document.open(); document.write(html); document.close();
+    })
+    .catch(function () {
+      document.getElementById('msg').innerHTML = 'Não foi possível abrir esta página agora. <a href="' + pasta + '?carregar=1">Abrir pelo endereço original</a>.';
+    });
+})();
+</script>
+</body>
+</html>
