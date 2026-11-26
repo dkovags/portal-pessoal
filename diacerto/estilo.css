@@ -1,0 +1,61 @@
+/* DiaCerto – visual do protótipo: fundo claro, verde-petróleo principal, âmbar para cupons e avisos. */
+:root{--fundo:#F7F7F4;--tinta:#1C1F1E;--mudo:#4A504E;--linha:#E3E5E1;--borda:#D5D9D4;--cartao:#FFFFFF;
+  --primaria:#0F5F58;--primaria-escura:#0B4A44;--primaria-clara:#DDEFEC;--ambar:#B45309;--ambar-claro:#FFF4E5;--ambar-escuro:#7A3E06;--erro:#B42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--tinta);font:15px/1.5 Inter,system-ui,sans-serif}
+a{color:var(--primaria)}a:hover{color:var(--primaria-escura)}
+.faixa-prototipo{background:var(--tinta);color:#fff;font-size:12.5px;padding:8px 16px;text-align:center}
+.faixa-prototipo a{color:#BFE3DE;font-weight:600}
+.tela{max-width:480px;margin:0 auto;padding:16px 20px 32px;display:flex;flex-direction:column;gap:16px}
+.topo{display:flex;align-items:center;gap:12px;min-height:44px}.entre{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.marca{display:flex;align-items:center;gap:8px;font:700 20px 'Space Grotesk',sans-serif;letter-spacing:-.3px}
+.titulo{margin:0;font:700 22px/1.2 'Space Grotesk',sans-serif}
+.manchete{margin:0;font:700 32px/1.12 'Space Grotesk',sans-serif;letter-spacing:-.6px}
+.subtitulo{margin:0;font-size:15px;font-weight:700}
+.kicker{margin:0;font-weight:700;color:var(--ambar-escuro)}
+.mudo{color:var(--mudo);margin:0}.tinta{color:var(--tinta)}.pequeno{font-size:13.5px}.mini{font-size:12.5px}.bloco{display:block}
+.pilha{display:flex;flex-direction:column;gap:12px}.pilha-curta{display:flex;flex-direction:column;gap:6px}
+.linha{display:flex;gap:12px;align-items:center}.cresce{flex:1;min-width:0;display:flex;flex-direction:column}.direita{text-align:right;display:flex;flex-direction:column}
+.grade2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cartao{background:var(--cartao);border:1px solid var(--linha);border-radius:16px;padding:14px 16px;margin:0;color:inherit;text-decoration:none}
+.cartao.suave{background:#EEF0EC;border-color:transparent}
+.cartao.escuro{background:var(--primaria);border-color:var(--primaria);color:#fff}.claro{color:#DDEFEC}
+.cartao.aviso{background:var(--ambar-claro);border-color:transparent;color:var(--ambar-escuro);display:flex;gap:12px;align-items:center}.cartao.aviso p{margin:0;font-size:13.5px}
+.aviso-texto{background:var(--ambar-claro);border-color:transparent;color:var(--ambar-escuro);font-size:13.5px}
+.cartao.ajuda{display:flex;gap:12px;align-items:center;font-size:13.5px;color:var(--ambar-escuro);background:var(--ambar-claro);border-color:transparent}
+.perfil-card{display:flex;flex-direction:column;gap:10px}.perfil-card:hover{border-color:var(--primaria)}
+.avatar{border-radius:50%;color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.preco{font-size:17px}.valor-grande{font:700 34px 'Space Grotesk',sans-serif}
+.selo{align-self:flex-start;font-size:12px;font-weight:600;color:var(--primaria);background:var(--primaria-clara);padding:6px 10px;border-radius:999px}
+.etiqueta{align-self:flex-start;font-size:12px;font-weight:600;color:var(--primaria);background:var(--primaria-clara);padding:4px 8px;border-radius:999px}
+.etiqueta.neutra{color:var(--tinta);background:#EEF0EC;font-weight:500;padding:6px 10px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--borda);background:#fff;color:var(--tinta);font:600 13.5px Inter,sans-serif;text-decoration:none;cursor:pointer}
+.chip.ativo{background:var(--primaria);border-color:var(--primaria);color:#fff}.chip:disabled{cursor:default;opacity:.85}
+.btn{display:flex;align-items:center;justify-content:center;min-height:52px;padding:0 18px;border-radius:14px;border:none;background:var(--primaria);color:#fff;font:600 16px Inter,sans-serif;text-decoration:none;cursor:pointer}
+.btn:hover{background:var(--primaria-escura);color:#fff}.btn:disabled{opacity:.45;cursor:default}
+.btn.contorno{background:#fff;border:1.5px solid var(--primaria);color:var(--primaria);min-height:48px}
+.btn.contorno-neutro{background:#fff;border:1.5px solid var(--borda);color:var(--tinta)}
+.btn.suave-btn{background:var(--primaria-clara);color:var(--primaria);min-height:46px;font-size:14.5px}
+.btn.claro-btn{background:#fff;color:var(--primaria);min-height:44px;font-size:14px;margin-top:6px}
+.btn.pequeno-btn{min-height:44px;font-size:14px;align-self:flex-end}
+.btn.fixo{position:sticky;bottom:16px;box-shadow:0 6px 20px rgba(15,95,88,.25)}
+.link-forte{font-weight:600;font-size:14px;padding:10px 4px}
+.icone-btn{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;background:#fff;border:1px solid var(--linha);color:var(--tinta);flex-shrink:0}
+.opcao{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:14px;background:#fff;border:1px solid var(--borda);font:inherit;color:inherit;text-align:left;cursor:pointer}
+.opcao.ativa{background:var(--primaria-clara);border:2px solid var(--primaria)}.opcao.centro{align-items:center;font-weight:600;min-height:48px;justify-content:center}.opcao:disabled{opacity:.5;cursor:default}
+label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--mudo)}
+input,select,textarea{min-height:44px;border-radius:12px;border:1px solid var(--borda);padding:0 12px;font:500 15px Inter,sans-serif;color:var(--tinta);background:#fff;width:100%}
+textarea{min-height:72px;padding:10px 12px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:3px solid #0A5CFF;outline-offset:1px}
+hr{border:none;border-top:1px solid var(--linha);margin:2px 0;width:100%}
+.total{font-size:17px;font-weight:700}.desconto{color:#9A4A07;font-weight:600}
+.destaque{color:var(--primaria);font-weight:600}
+.passos{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.abas{display:flex;gap:4px;padding:4px;border-radius:14px;background:#EEF0EC;overflow-x:auto}
+.abas a{flex:1 0 auto;text-align:center;padding:10px 12px;border-radius:10px;font:600 13.5px Inter,sans-serif;color:var(--mudo);text-decoration:none;white-space:nowrap}
+.abas a.ativa{background:#fff;color:var(--primaria);font-weight:700}
+.contador{display:inline-flex;min-width:20px;height:20px;border-radius:999px;background:var(--ambar);color:#fff;font-size:12px;align-items:center;justify-content:center;padding:0 6px}
+.erro{color:var(--erro);font-weight:600;font-size:13.5px;margin:0}.ok{color:var(--primaria);font-weight:600;font-size:13.5px;margin:0}
+.centro-texto{text-align:center}
+.cartao.aviso svg,.cartao.ajuda svg{flex-shrink:0;width:22px;height:22px}

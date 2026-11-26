@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>DiaCerto – protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./estilo.css">
+</head>
+<body>
+<div id="app"><p style="padding:24px;font-family:system-ui">Carregando…</p></div>
+<noscript>O DiaCerto precisa de JavaScript ativado.</noscript>
+<script type="module">
+  import { iniciar } from './src/apresentacao/app.js';
+  iniciar(document.getElementById('app'));
+</script>
+</body>
+</html>
