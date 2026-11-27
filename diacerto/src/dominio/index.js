@@ -7,3 +7,4 @@ export * from './atendimento.js';
 export * from './candidatura.js';
 export * from './ocorrencia.js';
 export * from './indicadores.js';
+export * from './acesso.js';

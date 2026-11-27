@@ -42,7 +42,7 @@ export function novaCandidatura(dados) {
     precos: { diaria: 0, meiaDiaria: 0, transporte: 0, descontoPacote: 0 },
     agenda: { diasDaSemana: [], inicio: 8, fim: 17 },
     verificacao: Object.fromEntries(ITENS_VERIFICACAO.map((i) => [i.id, { resultado: 'pendente', data: null }])),
-    aceiteConduta: null, motivoReprovacao: '', diaristaId: null,
+    aceiteConduta: null, motivoReprovacao: '', diaristaId: null, email: null,
   };
 }
 

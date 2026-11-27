@@ -31,7 +31,22 @@ export function repositorioCandidaturasEmMemoria(iniciais = []) {
 /** @returns {import('../../aplicacao/portas.js').RepositorioClientes} */
 export function repositorioClientesEmMemoria(iniciais) {
   const dados = new Map(iniciais.map((c) => [c.id, clonar(c)]));
-  return { async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; } };
+  return {
+    async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
+    async listar() { return [...dados.values()].map(clonar); },
+    async criar(c) { dados.set(c.id, clonar(c)); },
+  };
+}
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioPerfis} */
+export function repositorioPerfisEmMemoria(iniciais = []) {
+  const dados = new Map(iniciais.map((p) => [p.email, clonar(p)]));
+  return {
+    async porEmail(email) { const p = dados.get(String(email).toLowerCase()); return p ? clonar(p) : null; },
+    async listar() { return [...dados.values()].map(clonar); },
+    async salvar(p) { dados.set(p.email, clonar(p)); },
+    async remover(email) { dados.delete(email); },
+  };
 }
 
 /** @returns {import('../../aplicacao/portas.js').RepositorioAtendimentos} */

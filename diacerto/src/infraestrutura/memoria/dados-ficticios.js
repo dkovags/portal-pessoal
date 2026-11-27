@@ -107,7 +107,9 @@ export function gerarDadosFicticios(hoje) {
       resolucao: 'Conversamos com as duas partes; a profissional avisou do atraso e compensou o horário no fim.', reembolso: 0 },
   ];
 
-  return { ocorrencias, diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
+  const perfis = [{ email: 'operacao@exemplo.com', papel: 'operacao', clienteId: null, diaristaId: null }];
+
+  return { perfis, ocorrencias, diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
 }
 
 function proximoDiaUtil(hoje, minimo) {

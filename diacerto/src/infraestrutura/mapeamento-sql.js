@@ -61,7 +61,7 @@ export const candidaturaDeLinha = (l) => ({
   precos: { diaria: l.diaria, meiaDiaria: l.meia_diaria, transporte: l.transporte, descontoPacote: Number(l.desconto_pacote) },
   agenda: { diasDaSemana: l.agenda_dias ?? [], inicio: l.agenda_inicio, fim: l.agenda_fim },
   verificacao: l.verificacao ?? {}, aceiteConduta: l.aceite_conduta_em ?? null,
-  motivoReprovacao: l.motivo_reprovacao ?? '', diaristaId: l.diarista_id ?? null, criadaEm: new Date(l.criada_em),
+  motivoReprovacao: l.motivo_reprovacao ?? '', diaristaId: l.diarista_id ?? null, criadaEm: new Date(l.criada_em), email: l.email ?? null,
 });
 
 export const linhaDeCandidatura = (c) => ({
@@ -70,7 +70,7 @@ export const linhaDeCandidatura = (c) => ({
   diaria: c.precos.diaria, meia_diaria: c.precos.meiaDiaria, transporte: c.precos.transporte, desconto_pacote: c.precos.descontoPacote,
   agenda_dias: c.agenda.diasDaSemana, agenda_inicio: c.agenda.inicio, agenda_fim: c.agenda.fim,
   verificacao: c.verificacao, aceite_conduta_em: c.aceiteConduta, motivo_reprovacao: c.motivoReprovacao,
-  diarista_id: c.diaristaId, ...(c.criadaEm ? { criada_em: new Date(c.criadaEm).toISOString() } : {}),
+  diarista_id: c.diaristaId, email: c.email ?? null, ...(c.criadaEm ? { criada_em: new Date(c.criadaEm).toISOString() } : {}),
 });
 
 export const ocorrenciaDeLinha = (l) => ({

@@ -13,6 +13,15 @@
  */
 
 /** @typedef {{id:string, nome:string, endereco:string, regiao:string}} Cliente */
+/** @typedef {{email:string, papel:'operacao'|'cliente'|'diarista', clienteId:string|null, diaristaId:string|null}} Perfil */
+/**
+ * @typedef {object} RepositorioPerfis
+ * @property {(email:string) => Promise<Perfil|null>} porEmail
+ * @property {() => Promise<Perfil[]>} listar
+ * @property {(p:Perfil) => Promise<void>} salvar
+ * @property {(email:string) => Promise<void>} remover
+ * @property {(idUsuario:string) => Promise<string|null>} [emailDoUsuario] só no servidor
+ */
 
 /**
  * @typedef {object} RepositorioDiaristas
@@ -32,6 +41,7 @@
  * @property {Record<string,{resultado:string, data:string|null}>} verificacao só resultado e data, nunca cópias
  * @property {string|null} aceiteConduta @property {string} motivoReprovacao @property {string|null} diaristaId
  * @property {Date|string} [criadaEm]
+ * @property {string|null} [email] conta Google; na aprovação vira o acesso da diarista
  */
 /**
  * @typedef {object} RepositorioCandidaturas
@@ -40,7 +50,7 @@
  * @property {(c:Candidatura) => Promise<void>} salvar
  */
 
-/** @typedef {{obter:(id:string)=>Promise<Cliente|null>}} RepositorioClientes */
+/** @typedef {{obter:(id:string)=>Promise<Cliente|null>, listar:()=>Promise<Cliente[]>, criar:(c:Cliente)=>Promise<void>}} RepositorioClientes */
 
 /**
  * @typedef {object} RepositorioAtendimentos

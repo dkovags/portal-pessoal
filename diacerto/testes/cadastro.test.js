@@ -66,3 +66,13 @@ test('preço abaixo do piso aparece como pendência', async () => {
   assert.equal(c.status, 'em_cadastro');
   assert.ok(c.pendencias.includes('A diária está abaixo da remuneração mínima.'));
 });
+
+test('aprovação com e-mail libera o acesso da diarista', async () => {
+  const { casos, infra } = montar();
+  await casos.atualizarCandidatura('k2', { email: 'Benedita@Gmail.com', verificacao: tudoOk });
+  await casos.registrarAceiteDaConduta('k2');
+  const { diarista, acesso } = await casos.aprovarCandidatura('k2');
+  assert.equal(acesso.email, 'benedita@gmail.com');
+  assert.equal((await infra.perfis.porEmail('benedita@gmail.com')).diaristaId, diarista.id);
+  await assert.rejects(casos.atualizarCandidatura('k1', { email: 'operacao@exemplo.com' }), { codigo: 'EMAIL_EM_USO' });
+});
