@@ -158,3 +158,75 @@ test('api: avaliações gravadas no Postgres e restritas a quem participou', { s
   const lados = await casos.avaliacoesDoAtendimento(alvo.atendimentoId);
   assert.deepEqual([lados.doCliente.nota, lados.daDiarista.nota], [4, 5]);
 });
+
+test('api: autocadastro com o e-mail do login; aceite dos termos antes de reservar', { skip: pular }, async () => {
+  const { DOCUMENTOS_LEGAIS } = await import('../src/dominio/index.js');
+  const versoes = { 'termos-cliente': DOCUMENTOS_LEGAIS['termos-cliente'].versao, privacidade: DOCUMENTOS_LEGAIS.privacidade.versao };
+  const antes = await corpo(await pedir('/eu', { token: 'sem@x.com', metodo: 'GET' }));
+  assert.deepEqual([antes.resultado.papel, antes.resultado.aceitesPendentes], [null, []]);
+  assert.equal((await pedir('/casos/buscarProfissionais', { token: 'sem@x.com', args: [{}] })).status, 403);
+  const cad = await corpo(await pedir('/casos/autocadastrarCliente', { token: 'sem@x.com', args: [{
+    email: 'outra@x.com', nome: 'Sem Perfil da Silva', celular: '61 98888-7777', endereco: 'SQN 312, Bloco [X], apto [Y]', regiao: 'Asa Norte', aceites: versoes }] }));
+  assert.equal(cad.status, 200);
+  assert.equal(cad.resultado.perfil.email, 'sem@x.com');
+  const [cli] = await executorPsql(BANCO).consultar('select celular from diacerto.clientes where id = $1', [cad.resultado.cliente.id]);
+  assert.equal(cli.celular, '61988887777');
+  const depois = await corpo(await pedir('/eu', { token: 'sem@x.com', metodo: 'GET' }));
+  assert.deepEqual([depois.resultado.papel, depois.resultado.aceitesPendentes], ['cliente', []]);
+  assert.equal((await pedir('/casos/autocadastrarCliente', { token: 'sem@x.com', args: [{}] })).status, 403, 'só quem ainda não tem acesso');
+
+  const ana = await corpo(await pedir('/eu', { token: 'ana@x.com', metodo: 'GET' }));
+  assert.deepEqual(ana.resultado.aceitesPendentes.map((d) => d.documento), ['termos-cliente', 'privacidade']);
+  const bloqueada = await corpo(await pedir('/casos/comprarPacote', { token: 'ana@x.com', args: [{ diaristaId: 'd2' }] }));
+  assert.equal(bloqueada.status, 403);
+  assert.match(bloqueada.erro.mensagem, /Termos de uso para clientes/);
+  const aceitou = await corpo(await pedir('/casos/registrarAceites', { token: 'ana@x.com', args: [{ email: 'op@x.com', papel: 'operacao', aceites: versoes }] }));
+  assert.deepEqual(aceitou.resultado, []);
+  const registrados = await executorPsql(BANCO).consultar('select email, documento from diacerto.aceites order by email, documento');
+  assert.ok(registrados.some((r) => r.email === 'ana@x.com' && r.documento === 'privacidade'));
+  assert.ok(!registrados.some((r) => r.email === 'op@x.com'), 'o aceite é de quem está logado');
+});
+
+test('postgres: pacote comprado, agendado, cancelado e encerrado com valores coerentes', { skip: pular }, async () => {
+  const comprado = await corpo(await pedir('/casos/comprarPacote', { token: 'ana@x.com', args: [{ clienteId: 'c2', diaristaId: 'd2', duracao: 'meiaDiaria', metodo: 'pix' }] }));
+  assert.equal(comprado.status, 200);
+  const p = comprado.resultado;
+  assert.equal(p.clienteId, 'c1', 'o cliente é sempre o do login');
+  const [linha] = await executorPsql(BANCO).consultar('select * from diacerto.pacotes where id = $1', [p.id]);
+  assert.deepEqual([linha.duracao, linha.total_pago, linha.status], ['meiaDiaria', p.unitario.totalCliente * 4, 'ativo']);
+  const livre = (await casos.obterPerfil('d2', 'meiaDiaria')).proximosHorarios.at(-1);
+  const a = await corpo(await pedir('/casos/solicitarReserva', { token: 'ana@x.com', args: [{ diaristaId: 'd2', data: livre.data, horaInicio: livre.inicio, duracao: 'meiaDiaria', modalidade: 'pacote', metodo: 'pix' }] }));
+  assert.equal(a.status, 200);
+  const [at] = await executorPsql(BANCO).consultar('select pacote_id, total_cliente, politica_cancelamento from diacerto.atendimentos where id = $1', [a.resultado.id]);
+  assert.deepEqual([at.pacote_id, at.total_cliente, at.politica_cancelamento.horasGratuitas], [p.id, p.unitario.totalCliente, 24]);
+  const saldo = async () => (await corpo(await pedir('/casos/meusPacotes', { token: 'ana@x.com', args: [] }))).resultado.find((x) => x.id === p.id);
+  assert.equal((await saldo()).saldo, 3);
+  await pedir('/casos/cancelarPeloCliente', { token: 'ana@x.com', args: [{ atendimentoId: a.resultado.id }] });
+  assert.equal((await saldo()).saldo, 4);
+  const alheio = await corpo(await pedir('/casos/encerrarPacote', { token: 'marlene@x.com', args: [{ pacoteId: p.id }] }));
+  assert.equal(alheio.status, 403);
+  const enc = await corpo(await pedir('/casos/encerrarPacote', { token: 'ana@x.com', args: [{ pacoteId: p.id }] }));
+  assert.deepEqual([enc.resultado.status, enc.resultado.desistencia, enc.resultado.reembolso], ['encerrado', true, p.totalPago]);
+  const [ev] = await executorPsql(BANCO).consultar("select dados from diacerto.eventos where tipo = 'pagamento.estorno' order by id desc limit 1");
+  assert.equal(ev.dados.valor, p.totalPago);
+});
+
+test('postgres: parâmetros com vigência e histórico; só a operação altera', { skip: pular }, async () => {
+  const { parteEditavel, PARAMETROS_PADRAO } = await import('../src/dominio/index.js');
+  const valores = structuredClone(parteEditavel(PARAMETROS_PADRAO));
+  valores.comissao.avulso = 0.18;
+  valores.cancelamento.horasGratuitas = 48;
+  const negado = await pedir('/casos/alterarParametros', { token: 'ana@x.com', args: [{ valores, motivo: 'Tentativa de cliente' }] });
+  assert.equal(negado.status, 403);
+  const r = await corpo(await pedir('/casos/alterarParametros', { token: 'op@x.com', args: [{ valores, motivo: 'Teste de comissão no avulso', alteradoPor: 'outra@x.com' }] }));
+  assert.equal(r.status, 200);
+  const hist = (await corpo(await pedir('/casos/historicoParametros', { token: 'op@x.com', args: [] }))).resultado;
+  assert.equal(hist.length, 2);
+  assert.equal(hist[0].alteradoPor, 'op@x.com');
+  assert.deepEqual(hist[0].mudancas.map((m) => m.campo).sort(), ['cancelamento.horasGratuitas', 'comissao.avulso']);
+  const pub = await corpo(await pedir('/casos/parametrosVigentes', { args: [] }));
+  assert.equal(pub.resultado.valores.comissao.avulso, 0.18);
+  const sim = await casos.simularReserva({ diaristaId: 'd1', clienteId: 'c2' });
+  assert.equal(sim.valores.comissao, Math.round(sim.valores.servico * 0.18));
+  assert.equal(sim.politicaCancelamento.horasGratuitas, 48);
+});

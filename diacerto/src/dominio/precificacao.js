@@ -1,4 +1,4 @@
-import { percentualDe } from './dinheiro.js';
+import { percentualDe, formatarReais } from './dinheiro.js';
 import { RegraDeNegocioViolada } from './erros.js';
 import { PARAMETROS_PADRAO } from './parametros.js';
 
@@ -11,16 +11,16 @@ import { PARAMETROS_PADRAO } from './parametros.js';
  */
 export function validarPrecosDaDiarista(precos, parametros = PARAMETROS_PADRAO) {
   if (precos.diaria < parametros.piso.diaria) {
-    throw new RegraDeNegocioViolada('PISO_DIARIA', 'A diária está abaixo da remuneração mínima.');
+    throw new RegraDeNegocioViolada('PISO_DIARIA', `A diária está abaixo da remuneração mínima (${formatarReais(parametros.piso.diaria)}).`);
   }
   if (precos.meiaDiaria < parametros.piso.meiaDiaria) {
-    throw new RegraDeNegocioViolada('PISO_MEIA_DIARIA', 'A meia diária está abaixo da remuneração mínima.');
+    throw new RegraDeNegocioViolada('PISO_MEIA_DIARIA', `A meia diária está abaixo da remuneração mínima (${formatarReais(parametros.piso.meiaDiaria)}).`);
   }
   if (precos.transporte < 0) {
     throw new RegraDeNegocioViolada('TRANSPORTE_NEGATIVO', 'O transporte não pode ser negativo.');
   }
   if (precos.descontoPacote < 0 || precos.descontoPacote > parametros.pacote.descontoMaximo) {
-    throw new RegraDeNegocioViolada('DESCONTO_PACOTE', 'Desconto do pacote fora do limite permitido.');
+    throw new RegraDeNegocioViolada('DESCONTO_PACOTE', `O desconto do pacote vai de 0% a ${Math.round(parametros.pacote.descontoMaximo * 100)}%.`);
   }
   return true;
 }

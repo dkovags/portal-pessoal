@@ -1,7 +1,7 @@
 // Adaptadores das portas sobre Postgres (schema diacerto), para rodar no servidor.
 // `db` = { consultar(sql, params) -> linhas, executar(sql, params) }.
 import {
-  diaristaDeLinha, linhaDeDiarista, atendimentoDeLinha, linhaDeAtendimento, pacoteDeLinha, linhaDePacote,
+  diaristaDeLinha, linhaDeDiarista, atendimentoDeLinha, linhaDeAtendimento, pacoteDeLinha, linhaDePacote, parametroDeLinha,
   candidaturaDeLinha, linhaDeCandidatura, ocorrenciaDeLinha, linhaDeOcorrencia, chaveDia,
 } from '../mapeamento-sql.js';
 
@@ -59,11 +59,11 @@ export function criarRepositoriosPostgres(db, relogio) {
     },
     clientes: {
       async obter(id) {
-        const [c] = await db.consultar('select id, nome, endereco, regiao from diacerto.clientes where id = $1', [id]);
+        const [c] = await db.consultar('select id, nome, endereco, regiao, celular from diacerto.clientes where id = $1', [id]);
         return c ?? null;
       },
-      async listar() { return db.consultar('select id, nome, endereco, regiao from diacerto.clientes order by nome'); },
-      async criar(c) { await gravar(db, 'clientes', { id: c.id, nome: c.nome, endereco: c.endereco, regiao: c.regiao }); },
+      async listar() { return db.consultar('select id, nome, endereco, regiao, celular from diacerto.clientes order by nome'); },
+      async criar(c) { await gravar(db, 'clientes', { id: c.id, nome: c.nome, endereco: c.endereco, regiao: c.regiao, celular: c.celular ?? null }); },
     },
     atendimentos: {
       async salvar(a) { await gravar(db, 'atendimentos', linhaDeAtendimento(a)); },
@@ -73,12 +73,31 @@ export function criarRepositoriosPostgres(db, relogio) {
       async listarTodos() { return (await db.consultar('select * from diacerto.atendimentos')).map(atendimentoDeLinha); },
     },
     pacotes: {
-      async obterAtivo(clienteId, diaristaId) {
-        const [l] = await db.consultar(`select * from diacerto.pacotes where cliente_id = $1 and diarista_id = $2
-          and usados < total and validade > $3::timestamptz order by validade limit 1`, [clienteId, diaristaId, relogio.agora().toISOString()]);
-        return l ? pacoteDeLinha(l) : null;
-      },
+      async obter(id) { const [l] = await db.consultar('select * from diacerto.pacotes where id = $1', [id]); return l ? pacoteDeLinha(l) : null; },
+      async listarPorCliente(id) { return (await db.consultar('select * from diacerto.pacotes where cliente_id = $1', [id])).map(pacoteDeLinha); },
       async salvar(p) { await gravar(db, 'pacotes', linhaDePacote(p)); },
+    },
+    aceites: {
+      async listar(email) {
+        return (await db.consultar('select documento, versao, aceito_em from diacerto.aceites where email = lower($1) order by aceito_em', [email]))
+          .map((l) => ({ documento: l.documento, versao: l.versao, aceitoEm: new Date(l.aceito_em) }));
+      },
+      async registrar(a) {
+        await db.executar(`insert into diacerto.aceites (email, documento, versao, aceito_em) values (lower($1), $2, $3, $4::timestamptz)
+          on conflict do nothing`, [a.email, a.documento, a.versao, new Date(a.aceitoEm).toISOString()]);
+      },
+    },
+    configuracao: {
+      async vigente() {
+        const [l] = await db.consultar(`select * from diacerto.parametros where vigente_desde <= $1::timestamptz
+          order by vigente_desde desc, id desc limit 1`, [relogio.agora().toISOString()]);
+        return l ? parametroDeLinha(l) : null;
+      },
+      async historico() { return (await db.consultar('select * from diacerto.parametros order by vigente_desde desc, id desc limit 50')).map(parametroDeLinha); },
+      async salvar(v) {
+        await db.executar('insert into diacerto.parametros (vigente_desde, valores, motivo, alterado_por) values ($1::timestamptz, $2::jsonb, $3, $4)',
+          [new Date(v.vigenteDesde).toISOString(), v.valores, v.motivo, v.alteradoPor]);
+      },
     },
     cupons: {
       async valor(codigo) {

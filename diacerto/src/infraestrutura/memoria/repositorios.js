@@ -63,16 +63,35 @@ export function repositorioAtendimentosEmMemoria(iniciais = []) {
 }
 
 /** @returns {import('../../aplicacao/portas.js').RepositorioPacotes} */
-export function repositorioPacotesEmMemoria(iniciais = [], relogio) {
+export function repositorioPacotesEmMemoria(iniciais = []) {
   const dados = new Map(iniciais.map((p) => [p.id, clonar(p)]));
   return {
-    async obterAtivo(clienteId, diaristaId) {
-      const agora = relogio.agora();
-      const p = [...dados.values()].find((x) => x.clienteId === clienteId && x.diaristaId === diaristaId
-        && x.usados < x.total && x.validade > agora);
-      return p ? clonar(p) : null;
-    },
+    async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
+    async listarPorCliente(clienteId) { return [...dados.values()].filter((p) => p.clienteId === clienteId).map(clonar); },
     async salvar(p) { dados.set(p.id, clonar(p)); },
+  };
+}
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioAceites} */
+export function repositorioAceitesEmMemoria(iniciais = []) {
+  const dados = iniciais.map(clonar);
+  return {
+    async listar(email) { return dados.filter((a) => a.email === String(email).toLowerCase()).map(({ email: _, ...a }) => clonar(a)); },
+    async registrar(a) {
+      if (!dados.some((x) => x.email === a.email && x.documento === a.documento && x.versao === a.versao)) dados.push(clonar(a));
+    },
+  };
+}
+
+/** Versões dos parâmetros comerciais; a mais recente já em vigor é a vigente. @returns {import('../../aplicacao/portas.js').RepositorioParametros} */
+export function repositorioParametrosEmMemoria(iniciais = [], relogio) {
+  const versoes = iniciais.map(clonar);
+  const ordenadas = () => versoes.map((v, i) => ({ ...clonar(v), id: i + 1 }))
+    .sort((a, b) => new Date(b.vigenteDesde) - new Date(a.vigenteDesde) || b.id - a.id);
+  return {
+    async vigente() { return ordenadas().find((v) => new Date(v.vigenteDesde) <= relogio.agora()) ?? null; },
+    async historico() { return ordenadas(); },
+    async salvar(v) { versoes.push(clonar(v)); },
   };
 }
 

@@ -64,7 +64,7 @@ test('preço abaixo do piso aparece como pendência', async () => {
   const { casos } = montar();
   const c = await casos.atualizarCandidatura('k1', { precos: { diaria: reais(100), meiaDiaria: reais(80), transporte: 0, descontoPacote: 0 } });
   assert.equal(c.status, 'em_cadastro');
-  assert.ok(c.pendencias.includes('A diária está abaixo da remuneração mínima.'));
+  assert.ok(c.pendencias.includes('A diária está abaixo da remuneração mínima (R$ 130,00).'));
 });
 
 test('aprovação com e-mail libera o acesso da diarista', async () => {

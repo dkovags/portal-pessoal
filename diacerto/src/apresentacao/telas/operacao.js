@@ -2,8 +2,9 @@ import { html } from '../html.js';
 import { erro } from '../componentes.js';
 import { moeda, dataCurta, horario } from '../formatos.js';
 import { TIPOS_OCORRENCIA, GRAVIDADES, ABERTO_POR, PAPEIS, REGIOES_PILOTO } from '../../dominio/index.js';
+import { abaParametros } from './parametros-operacao.js';
 
-const ABAS = [['cadastros', 'Cadastros'], ['atendimentos', 'Atendimentos'], ['ocorrencias', 'Ocorrências'], ['indicadores', 'Indicadores'], ['acessos', 'Acessos']];
+const ABAS = [['cadastros', 'Cadastros'], ['atendimentos', 'Atendimentos'], ['ocorrencias', 'Ocorrências'], ['indicadores', 'Indicadores'], ['parametros', 'Parâmetros'], ['acessos', 'Acessos']];
 const STATUS_AT = { solicitado: 'Aguardando aceite', aceito: 'Confirmado', em_andamento: 'Em andamento', concluido: 'Concluído', recusado: 'Recusado', cancelado: 'Cancelado' };
 const FAIXA = { verde: 'Seguir', amarelo: 'Ajustar', vermelho: 'Parar ou mudar', sem_dados: 'Sem dados ainda' };
 
@@ -108,12 +109,12 @@ async function abaIndicadores(ctx) {
           <span class="mudo mini">${i.regra}</span>
         </div>`)}
     </section>
-    <p class="mudo mini">Faixas e custos variáveis são as hipóteses do documento do piloto, em src/dominio/parametros.js. Com poucos atendimentos, os números ainda dizem pouco.</p>` };
+    <p class="mudo mini">Faixas e custos variáveis são as hipóteses do documento do piloto, em src/dominio/parametros.js; comissão, taxas e piso seguem a aba Parâmetros. Com poucos atendimentos, os números ainda dizem pouco.</p>` };
 }
 
 export async function telaOperacao(ctx, rota) {
   const aba = ABAS.some(([k]) => k === rota.params[0]) ? rota.params[0] : 'cadastros';
-  const conteudo = await { cadastros: abaCadastros, atendimentos: abaAtendimentos, ocorrencias: abaOcorrencias, indicadores: abaIndicadores, acessos: abaAcessos }[aba](ctx, rota);
+  const conteudo = await { cadastros: abaCadastros, atendimentos: abaAtendimentos, ocorrencias: abaOcorrencias, indicadores: abaIndicadores, parametros: abaParametros, acessos: abaAcessos }[aba](ctx, rota);
   return {
     html: html`
       <header class="topo entre"><h1 class="titulo">Operação</h1><a class="link-forte" href="#/">Início</a></header>

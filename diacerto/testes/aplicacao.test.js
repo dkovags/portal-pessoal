@@ -34,12 +34,16 @@ test('busca por data respeita a agenda e a duração', async () => {
   assert.deepEqual(meia.map((p) => p.id), ['d2']);
 });
 
-test('cliente com pacote ativo reserva no preço do pacote; cupom não reduz a diarista', async () => {
+test('cliente com pacote com saldo reserva no preço travado do pacote; cupom não se aplica (já pago)', async () => {
   const { casos } = montar();
   const sim = await casos.simularReserva({ diaristaId: 'd1', clienteId: 'c1', codigoCupom: 'lancamento' });
   assert.equal(sim.modalidade, 'pacote');
-  assert.equal(sim.valores.totalCliente, reais(182));
+  assert.equal(sim.pacoteAtivo.saldo, 3);
+  assert.equal(sim.valores.totalCliente, reais(212));
+  assert.equal(sim.valores.cupom, 0);
   assert.equal(sim.valores.recebeDiarista, reais(173));
+  const meia = await casos.simularReserva({ diaristaId: 'd1', clienteId: 'c1', duracao: 'meiaDiaria' });
+  assert.equal(meia.modalidade, 'avulso', 'o pacote é de diárias');
 });
 
 test('cupom inválido é recusado', async () => {
@@ -101,13 +105,20 @@ test('minhas diaristas: mais frequente primeiro, com pacote e saldo', async () =
   assert.equal(lista[0].pacote.total - lista[0].pacote.usados, 3);
 });
 
-test('contratar pacote cria o pacote e cobra o preço com desconto', async () => {
-  const { casos } = montar();
-  const a = await casos.solicitarReserva({ clienteId: 'c2', diaristaId: 'd3', data: proximo(2), horaInicio: 10, duracao: 'diaria', modalidade: 'pacote', metodo: 'pix' });
+test('pacote só por compra explícita: paga de uma vez e agenda pelo saldo', async () => {
+  const { casos, infra } = montar();
+  const pedido = { clienteId: 'c2', diaristaId: 'd3', data: proximo(2), horaInicio: 10, duracao: 'diaria', modalidade: 'pacote', metodo: 'pix' };
+  await assert.rejects(casos.solicitarReserva(pedido), { codigo: 'SEM_PACOTE' });
+  const p = await casos.comprarPacote({ clienteId: 'c2', diaristaId: 'd3', duracao: 'diaria', metodo: 'pix' });
+  assert.equal(p.unitario.totalCliente, reais(162 + 15 + 12)); // 180 - 10% = 162, transporte 15, taxa 12
+  assert.equal(p.totalPago, reais(189 * 4));
+  assert.equal(infra.pagamento.registro.at(-1).valor, reais(756));
+  const a = await casos.solicitarReserva(pedido);
   assert.equal(a.modalidade, 'pacote');
-  assert.equal(a.valores.totalCliente, reais(162 + 15 + 12)); // 180 - 10% = 162, transporte 15, taxa 12
+  assert.equal(a.pacoteId, p.id);
+  assert.equal(a.valores.totalCliente, reais(189));
   const sim = await casos.simularReserva({ diaristaId: 'd3', clienteId: 'c2' });
-  assert.equal(sim.pacoteAtivo.total, 4);
+  assert.equal(sim.pacoteAtivo.saldo, 3);
 });
 
 test('dia com pedido pendente não aparece como horário livre', async () => {

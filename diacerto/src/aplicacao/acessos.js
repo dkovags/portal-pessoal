@@ -1,9 +1,13 @@
-import { novoPerfil, novoCliente, normalizarEmail, RegraDeNegocioViolada } from '../dominio/index.js';
+import {
+  novoPerfil, novoCliente, normalizarEmail, normalizarCelular, aceitesPendentes, validarAceites, RegraDeNegocioViolada,
+} from '../dominio/index.js';
 
 /**
  * Casos de uso de acesso: cadastro de clientes e de perfis (operação, cliente, diarista).
  * @param {{perfis:import('./portas.js').RepositorioPerfis, clientes:import('./portas.js').RepositorioClientes,
- *   diaristas:import('./portas.js').RepositorioDiaristas, ids:import('./portas.js').GeradorDeIds}} dep
+ *   diaristas:import('./portas.js').RepositorioDiaristas, ids:import('./portas.js').GeradorDeIds,
+ *   aceites?:import('./portas.js').RepositorioAceites, notificador:import('./portas.js').Notificador,
+ *   relogio:import('./portas.js').Relogio}} dep
  */
 export function criarCasosDeAcesso(dep) {
   async function garantirLivre(email) {
@@ -26,13 +30,49 @@ export function criarCasosDeAcesso(dep) {
     },
 
     /** Cadastra o cliente e, se houver e-mail, já libera o acesso dele. */
-    async cadastrarCliente({ nome, endereco, regiao, email }) {
+    async cadastrarCliente({ nome, endereco, regiao, email, celular = null }) {
       const emailOk = email ? normalizarEmail(email) : null;
       if (emailOk) await garantirLivre(emailOk);
-      const cliente = novoCliente({ id: dep.ids.novo(), nome, endereco, regiao });
+      const cliente = novoCliente({ id: dep.ids.novo(), nome, endereco, regiao, celular });
       await dep.clientes.criar(cliente);
       if (emailOk) await dep.perfis.salvar(novoPerfil({ email: emailOk, papel: 'cliente', clienteId: cliente.id }));
       return cliente;
+    },
+
+    /**
+     * Autocadastro (RF14): quem entrou com Google e ainda não tem acesso vira cliente.
+     * O e-mail vem do login (o servidor não aceita outro); o aceite dos documentos é obrigatório.
+     */
+    async autocadastrarCliente({ email, nome, celular, endereco, regiao, aceites }) {
+      const emailOk = normalizarEmail(email);
+      const atual = await dep.perfis.porEmail(emailOk);
+      if (atual) throw new RegraDeNegocioViolada('JA_CADASTRADO', `Este e-mail já tem acesso como ${atual.papel}.`);
+      const documentos = validarAceites('cliente', aceites);
+      const cliente = novoCliente({ id: dep.ids.novo(), nome, endereco, regiao, celular: normalizarCelular(celular) });
+      await dep.clientes.criar(cliente);
+      const perfil = novoPerfil({ email: emailOk, papel: 'cliente', clienteId: cliente.id });
+      await dep.perfis.salvar(perfil);
+      const agora = dep.relogio.agora();
+      for (const d of documentos) await dep.aceites.registrar({ email: emailOk, ...d, aceitoEm: agora });
+      await dep.notificador.enviar({ para: 'operacao', canal: 'email', texto: `Novo cliente cadastrado: ${cliente.nome} (${cliente.regiao}).` });
+      return { perfil, cliente };
+    },
+
+    /** Documentos que a pessoa ainda precisa aceitar na versão vigente. */
+    async aceitesPendentes({ email, papel }) {
+      if (!dep.aceites) return [];
+      return aceitesPendentes(papel, await dep.aceites.listar(normalizarEmail(email)));
+    },
+
+    async registrarAceites({ email, papel, aceites }) {
+      const e = normalizarEmail(email);
+      const documentos = validarAceites(papel, aceites);
+      const ja = await dep.aceites.listar(e);
+      const agora = dep.relogio.agora();
+      for (const d of documentos) {
+        if (!ja.some((a) => a.documento === d.documento && a.versao === d.versao)) await dep.aceites.registrar({ email: e, ...d, aceitoEm: agora });
+      }
+      return aceitesPendentes(papel, await dep.aceites.listar(e));
     },
 
     async concederAcesso({ email, papel, clienteId = null, diaristaId = null }) {

@@ -1,6 +1,8 @@
 // Dados fictícios do protótipo, gerados em relação à data de hoje.
 // Nomes, avaliações e endereços são inventados.
-import { reais, calcularAtendimento, STATUS, novaCandidatura } from '../../dominio/index.js';
+import {
+  reais, calcularAtendimento, STATUS, novaCandidatura, novoPacote, parteEditavel, PARAMETROS_PADRAO,
+} from '../../dominio/index.js';
 
 const chave = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const somarDias = (base, n) => { const d = new Date(base.getFullYear(), base.getMonth(), base.getDate()); d.setDate(d.getDate() + n); return d; };
@@ -67,7 +69,8 @@ export function gerarDadosFicticios(hoje) {
     const valores = calcularAtendimento({ servico: d.precos.diaria, transporte: d.precos.transporte, modalidade, descontoPacote: d.precos.descontoPacote });
     const fim = new Date(inicio); fim.setHours(17);
     return { id: `a${++n}`, clienteId, diaristaId, inicio, horaInicio: 8, horaFim: 17, duracao: 'diaria', modalidade,
-      valores, metodo: 'pix', observacoes: '', codigoConfirmacao: '4821', status,
+      valores, metodo: 'pix', observacoes: '', codigoConfirmacao: '4821', status, pacoteId: null, taxaCancelamento: 0,
+      politicaCancelamento: { ...PARAMETROS_PADRAO.cancelamento },
       ...(status === STATUS.CONCLUIDO ? { concluidoEm: fim, autorizacao: `sim-hist-${n}` } : {}) };
   };
 
@@ -84,8 +87,16 @@ export function gerarDadosFicticios(hoje) {
   ];
   atendimentos.find((a) => a.status === STATUS.SOLICITADO).observacoes = 'Tenho um gato. A chave fica na portaria.';
 
-  const validade = new Date(hoje); validade.setMonth(validade.getMonth() + 3);
-  const pacotes = [{ id: 'p1', clienteId: 'c1', diaristaId: 'd1', total: 4, usados: 1, validade }];
+  // pacote comprado pela Ana com a Marlene um dia antes do primeiro atendimento por ele (a4)
+  const pacotes = [{
+    ...novoPacote({ id: 'p1', clienteId: 'c1', diaristaId: 'd1', duracao: 'diaria', precos: porId.d1.precos, metodo: 'pix', agora: somarDias(hoje, -8) }),
+    autorizacao: 'sim-hist-p1',
+  }];
+  const doPacote = atendimentos.find((a) => a.modalidade === 'pacote');
+  Object.assign(doPacote, { pacoteId: 'p1', autorizacao: 'sim-hist-p1' });
+
+  const parametros = [{ valores: parteEditavel(PARAMETROS_PADRAO), motivo: 'Valores iniciais do piloto (documento de análise crítica).',
+    alteradoPor: 'sistema', vigenteDesde: somarDias(hoje, -30) }];
 
   const contato = { ...novaCandidatura({ id: 'k1', nome: 'Cláudia Ferreira', celular: '61900000001', regiao: 'Sudoeste' }), criadaEm: somarDias(hoje, -1) };
   const emCadastro = {
@@ -109,7 +120,7 @@ export function gerarDadosFicticios(hoje) {
 
   const perfis = [{ email: 'operacao@exemplo.com', papel: 'operacao', clienteId: null, diaristaId: null }];
 
-  return { perfis, ocorrencias, diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
+  return { perfis, ocorrencias, diaristas, clientes, atendimentos, pacotes, parametros, aceites: [], cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
 }
 
 function proximoDiaUtil(hoje, minimo) {

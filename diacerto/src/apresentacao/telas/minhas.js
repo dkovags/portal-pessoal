@@ -10,19 +10,21 @@ export async function telaMinhas(ctx) {
   const proximo = lista.map((x) => x.proximo && { ...x.proximo, nome: x.diarista.nome, pacote: x.pacote }).filter(Boolean)
     .sort((a, b) => a.inicio - b.inicio)[0];
   return { html: html`
-    <header class="topo entre"><h1 class="titulo">Minhas diaristas</h1><a class="link-forte" href="#/">Início</a></header>
+    <header class="topo entre"><h1 class="titulo">Minhas diaristas</h1><span class="linha"><a class="link-forte" href="#/pacotes">Pacotes</a><a class="link-forte" href="#/">Início</a></span></header>
     ${proximo ? html`
       <section class="cartao escuro pilha-curta">
         <span class="mini claro">Próximo atendimento · ${proximo.status === 'solicitado' ? 'aguardando aceite' : 'confirmado'}</span>
         <strong>${proximo.nome} · ${dataLonga(proximo.inicio)}</strong>
-        <span class="pequeno claro">${horario(proximo.horaInicio, proximo.horaFim)}${proximo.pacote ? html` · Pacote: ${proximo.pacote.total - proximo.pacote.usados} de ${proximo.pacote.total} restantes` : ''}</span>
+        <span class="pequeno claro">${horario(proximo.horaInicio, proximo.horaFim)}${proximo.pacoteId ? ' · pelo pacote' : ''}</span>
         <span class="pequeno claro">Código de confirmação: <strong>${proximo.codigoConfirmacao}</strong></span>
         ${e.cancelar === proximo.id && e.previa ? html`
           <div class="cartao pilha-curta" role="alertdialog" aria-label="Confirmar cancelamento">
-            <strong class="pequeno tinta">${e.previa.gratuito ? 'Cancelamento sem custo' : 'Cancelamento com menos de 24 horas'}</strong>
-            <span class="mudo mini">${e.previa.gratuito
-              ? `Você recebe de volta ${moeda(e.previa.reembolsoCliente)}.`
-              : `Você recebe de volta ${moeda(e.previa.reembolsoCliente)}. ${moeda(e.previa.devidoDiarista)} ficam com a profissional, que reservou o dia.`}</span>
+            <strong class="pequeno tinta">${e.previa.gratuito ? 'Cancelamento sem custo' : 'Cancelamento fora do prazo gratuito'}</strong>
+            <span class="mudo mini">${e.previa.voltaAoPacote
+              ? 'O atendimento volta para o saldo do seu pacote.'
+              : e.previa.gratuito
+                ? `Você recebe de volta ${moeda(e.previa.reembolsoCliente)}.`
+                : `Você recebe de volta ${moeda(e.previa.reembolsoCliente)}. ${moeda(e.previa.devidoDiarista)} ficam com a profissional, que reservou o dia.`}</span>
             <div class="grade2">
               <button type="button" class="btn contorno-neutro" data-manter>Manter</button>
               <button type="button" class="btn" data-confirmar-cancelamento="${proximo.id}">Cancelar</button>
@@ -50,10 +52,10 @@ export async function telaMinhas(ctx) {
           <div class="linha">${avatar(x.diarista.iniciais, CORES[x.diarista.id], 48)}
             <div class="cresce"><strong>${x.diarista.nome}</strong>
               <span class="mudo pequeno bloco">${x.vezes === 0 ? 'Primeiro atendimento solicitado' : html`${x.vezes} ${x.vezes === 1 ? 'atendimento' : 'atendimentos'} com você`}${x.ultima ? html` · última vez em ${dataCurta(x.ultima)}` : ''}</span></div></div>
-          ${x.pacote ? html`<span class="etiqueta">Pacote: ${x.pacote.total - x.pacote.usados} atendimentos restantes</span>` : ''}
+          ${x.pacote ? html`<a class="etiqueta" href="#/pacotes">Pacote: ${x.pacote.saldo} de ${x.pacote.total} disponíveis</a>` : ''}
           <span class="mudo pequeno">${x.proximosLivres.length ? html`Próximos horários livres: ${x.proximosLivres.map((h) => `${dataCurta(h.data)} (${horario(h.inicio, h.fim)})`).join('; ')}` : 'Sem horários livres no momento. Você recebe um aviso quando ela abrir a agenda.'}</span>
           ${x.proximosLivres.length
-            ? html`<a class="btn suave-btn" href="#/reserva/${x.diarista.id}">Agendar com ${x.diarista.nome.split(' ')[0]}</a>`
+            ? html`<a class="btn suave-btn" href="${x.pacote ? `#/reserva/${x.diarista.id}?duracao=${x.pacote.duracao}&modalidade=pacote` : `#/reserva/${x.diarista.id}`}">Agendar com ${x.diarista.nome.split(' ')[0]}${x.pacote ? ' pelo pacote' : ''}</a>`
             : html`<a class="btn contorno" href="#/busca">Ver outras profissionais</a>`}
         </div>`)}
     </section>

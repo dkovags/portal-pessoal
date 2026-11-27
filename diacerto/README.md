@@ -48,8 +48,11 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 - Função `api` no projeto Neon `diacerto` (us-east-1): `GET /saude`, `GET /eu` e `POST /casos/<nome>`.
 - Login: o navegador envia o JWT do Neon Auth; o servidor verifica a assinatura (Ed25519) com WebCrypto.
 - Perfis (`diacerto.perfis`): `operacao` faz tudo; `cliente` e `diarista` só agem em nome próprio, e o servidor
-  substitui o cliente ou a diarista informados pelo navegador pelos do perfil logado. Só o pedido de contato
-  (`#/trabalhe`) é aberto sem login.
+  substitui o cliente ou a diarista informados pelo navegador pelos do perfil logado. Sem login, só o pedido de
+  contato (`#/trabalhe`) e a consulta das regras comerciais em vigor. Quem entrou com Google e não tem perfil só
+  pode fazer o autocadastro de cliente, com o e-mail do próprio login.
+- Reservar, comprar pacote, remarcar e aceitar pedido exigem os termos vigentes aceitos (a tela pede antes; o
+  servidor confere). O aceite e a alteração de parâmetros ficam sempre em nome de quem está logado.
 - O inicializador (`servidor/inicializador/index.mjs`) baixa do GitHub os arquivos de `servidor/arquivos.json`,
   fixados num commit pela variável `CODIGO_VERSAO`. Atualizar o servidor é trocar essa variável na função.
 - Acessos: na Operação, aba Acessos (cadastrar cliente, dar acesso a diarista ou à operação, remover). O cadastro
@@ -59,7 +62,9 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 
 - Projeto atual: `banco/projeto-diacerto/001_esquema.sql` (esquema) e `002_carga_ficticia.sql`
   (gerado por `node banco/gerar-carga.js`).
-- `banco/projeto-diacerto/003` a `005`: e-mail da candidata, avaliações e remarcação (aplicadas; o `001` já as inclui).
+- `banco/projeto-diacerto/003` a `006`: e-mail da candidata, avaliações, remarcação e, no `006`, autocadastro com
+  aceites, pacote completo e parâmetros com vigência. O `001` já inclui todas; o `006` só acrescenta (a coluna
+  antiga `pacotes.usados` fica, sem uso) e troca o piso fixo do banco por um mínimo absoluto (R$ 50 e R$ 30).
 - `banco/001` a `004`: esquema provisório usado antes no projeto Neon `diztudo`; ficou lá sem uso.
 
 ## Cadastro assistido de diaristas
@@ -78,11 +83,26 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 - **Ocorrências:** registro (dano, falta, atraso, qualidade, assédio ou risco, acidente) e resolução com reembolso.
   Assédio, risco e acidente são sempre graves e avisam a operação. Reembolso só em dano (até R$ 500) ou falta da
   profissional (até o valor pago), feito pelo provedor e nunca descontado da profissional.
+- **Parâmetros:** comissão, taxas, piso, política de cancelamento e regras do pacote, com motivo obrigatório e
+  histórico (quem, quando, o que mudou). Cada versão vale para reservas e pacotes novos; o que já foi contratado
+  guarda os valores e a política da época. Quem ficou abaixo de um piso novo é listado, e o painel dela avisa.
 - **Indicadores:** os critérios de interrupção do piloto (recompra em 30 dias, pares que sumiram, cancelamentos,
   faltas, margem de contribuição média e ocorrências graves abertas há mais de 72h), com faixa seguir, ajustar ou
   parar, além dos números do mês. Custos e faixas ficam em `src/dominio/parametros.js`.
 
 ## Cliente e profissional
+
+- **Autocadastro (`#/boas-vindas`):** quem entra com Google sem ter acesso informa nome, celular, endereço e região
+  e aceita os Termos de uso para clientes e a Política de privacidade. Diaristas continuam entrando pelo cadastro
+  assistido. Os documentos (`src/apresentacao/textos-legais.js`, rascunhos para revisão jurídica) são versionados
+  em `src/dominio/documentos.js`: mudou o texto, muda a versão nos dois lugares, e quem já tinha aceitado aceita
+  de novo no próximo acesso (`diacerto.aceites` guarda e-mail, documento, versão e data). Os documentos abrem
+  também sem login (`#/termos/<documento>`).
+- **Pacote (`#/pacote/<diarista>`, `#/pacotes`):** compra explícita, paga de uma vez, com preço e política de
+  cancelamento travados na compra. O saldo é calculado pelos atendimentos ligados ao pacote: pedido recusado ou
+  cancelado no prazo devolve o atendimento; cancelado fora do prazo gasta o atendimento, paga a parte da
+  profissional e devolve o resto. O cliente encerra quando quiser (inclusive vencido) e recebe o saldo; em até
+  7 dias da compra, sem atendimento realizado, é a desistência com reembolso integral.
 
 - **Cancelar:** antes de confirmar, o cliente vê quanto volta para ele e quanto fica com a profissional.
 - **Remarcar:** uma vez, até 24 horas antes; o pedido volta para a profissional aceitar o novo dia, sem nova
@@ -94,18 +114,21 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 
 ## Regras de negócio implementadas
 
-Os valores são hipóteses do piloto, centralizados em `src/dominio/parametros.js`:
+Os valores iniciais são hipóteses do piloto (`src/dominio/parametros.js`); os marcados com * a operação altera
+na aba Parâmetros, e a versão em vigor fica em `diacerto.parametros`:
 
-- Comissão sobre o serviço: 20% no avulso e 15% no pacote. Nunca incide sobre o transporte.
-- Taxa de serviço do cliente: R$ 15 no avulso e R$ 12 no pacote.
-- Cupom custeado pela plataforma, limitado à receita dela; nunca reduz o que a diarista recebe.
-- Pacote de 4 atendimentos, desconto definido pela diarista (até 30%), validade de 3 meses.
-- Piso: diária R$ 130 e meia diária R$ 70.
+- Comissão sobre o serviço*: 20% no avulso e 15% no pacote. Nunca incide sobre o transporte.
+- Taxa de serviço do cliente*: R$ 15 no avulso e R$ 12 no pacote.
+- Cupom custeado pela plataforma, limitado à receita dela; nunca reduz o que a diarista recebe. Não vale no pacote.
+- Pacote* de 4 atendimentos, desconto definido pela diarista (até 30%), validade de 3 meses.
+- Piso*: diária R$ 130 e meia diária R$ 70.
 - Até 2 atendimentos por semana da mesma diarista no mesmo cliente.
 - Janela de funcionamento das 7h às 20h; a diarista define a própria agenda dentro dela.
-- Cobrança só depois do aceite da diarista. Repasse com split na conclusão.
+- Cobrança avulsa só depois do aceite da diarista; pacote pago na compra. Repasse com split na conclusão.
 - Código de confirmação libera o pagamento; não mede jornada.
-- Cancelamento gratuito até 24h antes; depois, 50% do valor da diarista fica com ela.
+- Cancelamento* gratuito até 24h antes; depois, 50% do valor da diarista fica com ela. Vale a política gravada
+  na reserva (ou no pacote).
+- O endereço do cliente vai para a profissional depois que ela aceita o pedido.
 
 ## Testes
 
@@ -127,5 +150,6 @@ Sem `DIACERTO_PG`, esses testes são pulados.
 ## Pendências para sair do protótipo
 
 - Provedor de pagamento com split e WhatsApp reais.
+- Revisão jurídica dos termos e da política de privacidade, com os dados entre colchetes preenchidos.
 - Operações com várias gravações (aprovar cadastro) ainda não são atômicas.
 - Este repositório é público: dados reais de clientes e diaristas nunca devem entrar aqui.
