@@ -26,7 +26,7 @@ for (const arquivo of arquivos(SRC)) {
     const texto = readFileSync(arquivo, 'utf8');
     const imports = [...texto.matchAll(/(?:import|export)[^'"]*from\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
     for (const imp of imports) {
-      assert.ok(imp.startsWith('.'), `${imp}: só imports relativos (sem bibliotecas externas no núcleo)`);
+      assert.ok(imp.startsWith('.'), `${imp}: só imports relativos`);
       const alvo = relative(SRC, resolve(dirname(arquivo), imp)).split(/[\\/]/)[0];
       assert.ok(PERMITIDO[camada].includes(alvo), `${camada} não pode importar ${alvo} (${imp})`);
     }
