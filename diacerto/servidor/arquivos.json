@@ -2,6 +2,7 @@
   "entrada": "src/apresentacao/api/funcao.js",
   "arquivos": [
     "src/aplicacao/acessos.js",
+    "src/aplicacao/avaliacoes.js",
     "src/aplicacao/cadastro.js",
     "src/aplicacao/casos-de-uso.js",
     "src/aplicacao/datas.js",
@@ -13,6 +14,7 @@
     "src/apresentacao/api/servidor.js",
     "src/dominio/acesso.js",
     "src/dominio/atendimento.js",
+    "src/dominio/avaliacao.js",
     "src/dominio/candidatura.js",
     "src/dominio/dinheiro.js",
     "src/dominio/erros.js",

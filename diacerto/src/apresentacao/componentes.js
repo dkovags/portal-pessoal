@@ -20,5 +20,25 @@ export const CORES = { d1: '#0F5F58', d2: '#7A4E1D', d3: '#3D4A7A' };
 
 export const erro = (mensagem) => (mensagem ? html`<p class="erro" role="alert">${mensagem}</p>` : '');
 
-export const ajuda = (texto) => html`
-  <section class="cartao ajuda">${icone.escudo}<span>${texto} <a href="#/ajuda"><strong>Pedir ajuda</strong></a></span></section>`;
+export const ajuda = (texto, destino = '#/ajuda') => html`
+  <section class="cartao ajuda">${icone.escudo}<span>${texto} <a href="${destino}"><strong>Pedir ajuda</strong></a></span></section>`;
+
+/** Formulário de avaliação (notas de 1 a 5 e comentário opcional). */
+export const formAvaliacao = (item, titulo, ajudaComentario) => html`
+  <form class="cartao pilha-curta" data-avaliacao="${item.atendimentoId}">
+    <strong class="pequeno">${titulo}</strong>
+    <fieldset class="pilha-curta"><legend class="rotulo">Nota</legend>
+      <div class="chips">${[1, 2, 3, 4, 5].map((n) => html`<label class="marcavel"><input type="radio" name="nota" value="${n}" required><span aria-label="${n} de 5">${'★'.repeat(n)}</span></label>`)}</div>
+    </fieldset>
+    <label>Comentário (opcional)<textarea name="comentario" maxlength="300" placeholder="${ajudaComentario}"></textarea></label>
+    <button class="btn suave-btn">Enviar avaliação</button>
+  </form>`;
+
+/** Liga os formulários de avaliação a uma função que recebe {atendimentoId, nota, comentario}. */
+export function ligarAvaliacoes(raiz, enviar) {
+  raiz.querySelectorAll('[data-avaliacao]').forEach((f) => f.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const d = new FormData(f);
+    enviar({ atendimentoId: f.dataset.avaliacao, nota: Number(d.get('nota')), comentario: String(d.get('comentario') ?? '') });
+  }));
+}

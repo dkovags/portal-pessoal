@@ -19,6 +19,11 @@ const REGRAS = {
     simularReserva: ([p = {}], perfil) => [{ ...p, clienteId: perfil.clienteId }],
     solicitarReserva: ([p = {}], perfil) => [{ ...p, clienteId: perfil.clienteId }],
     cancelarPeloCliente: ([p = {}], perfil) => [{ ...p, clienteId: perfil.clienteId }],
+    simularCancelamento: ([p = {}], perfil) => [{ ...p, clienteId: perfil.clienteId }],
+    remarcarAtendimento: ([p = {}], perfil) => [{ ...p, clienteId: perfil.clienteId }],
+    meusAtendimentos: (_, perfil) => [{ clienteId: perfil.clienteId }],
+    pendentesDeAvaliacao: (_, perfil) => [{ clienteId: perfil.clienteId }],
+    avaliarProfissional: ([p = {}], perfil) => [{ ...p, clienteId: perfil.clienteId }],
     minhasDiaristas: (_, perfil) => [perfil.clienteId],
     registrarOcorrencia: async ([p = {}], perfil, dep) => {
       await doAtendimento(dep, p.atendimentoId, 'clienteId', perfil.clienteId);
@@ -27,6 +32,9 @@ const REGRAS = {
   },
   diarista: {
     painelDiarista: (_, perfil) => [perfil.diaristaId],
+    meusAtendimentos: (_, perfil) => [{ diaristaId: perfil.diaristaId }],
+    pendentesDeAvaliacao: (_, perfil) => [{ diaristaId: perfil.diaristaId }],
+    avaliarCliente: ([p = {}], perfil) => [{ ...p, diaristaId: perfil.diaristaId }],
     responderPedido: ([p = {}], perfil) => [{ ...p, diaristaId: perfil.diaristaId }],
     confirmarChegada: async ([p = {}], perfil, dep) => { await doAtendimento(dep, p.atendimentoId, 'diaristaId', perfil.diaristaId); return [p]; },
     concluirAtendimento: async ([p = {}], perfil, dep) => { await doAtendimento(dep, p.atendimentoId, 'diaristaId', perfil.diaristaId); return [p]; },

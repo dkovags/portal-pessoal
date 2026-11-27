@@ -46,7 +46,7 @@ export async function telaPerfil(ctx, rota) {
       <section class="pilha-curta">
         <h2 class="subtitulo">Avaliações de atendimentos realizados</h2>
         ${p.avaliacoes.length === 0 ? html`<p class="mudo pequeno">Ainda sem avaliações. Toda avaliação vem de um atendimento concluído.</p>` : ''}
-        ${p.avaliacoes.map((a) => html`<div class="cartao"><strong class="pequeno">${a.texto} · ${nota(a.nota)}</strong><span class="mudo mini bloco">${a.autor}, ${a.mes}</span></div>`)}
+        ${p.avaliacoes.map((a) => html`<div class="cartao"><strong class="pequeno">${'★'.repeat(Math.round(a.nota))} ${nota(a.nota)}${a.texto ? ` · ${a.texto}` : ''}</strong><span class="mudo mini bloco">${a.autor}, ${a.mes}</span></div>`)}
       </section>
       <a class="btn fixo" href="${destino}">${estado.plano === 'avulso' ? 'Escolher data e horário' : (sim.pacoteAtivo ? 'Agendar pelo pacote' : 'Contratar pacote e agendar o 1º')}</a>`,
     ligar(raiz) {

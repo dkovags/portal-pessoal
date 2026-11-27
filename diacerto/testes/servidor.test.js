@@ -140,3 +140,21 @@ test('api: operação cadastra cliente com acesso, vincula diarista e não remov
   const rem = await corpo(await pedir('/casos/removerAcesso', { token: 'op@x.com', args: [{ email: 'joana@x.com' }] }));
   assert.equal(rem.status, 200);
 });
+
+test('api: avaliações gravadas no Postgres e restritas a quem participou', { skip: pular }, async () => {
+  const pend = await corpo(await pedir('/casos/pendentesDeAvaliacao', { token: 'ana@x.com', args: [{ clienteId: 'c2' }] }));
+  const alvo = pend.resultado.find((x) => x.com === 'Marlene S.');
+  assert.ok(alvo);
+  const ok = await corpo(await pedir('/casos/avaliarProfissional', { token: 'ana@x.com', args: [{ atendimentoId: alvo.atendimentoId, clienteId: 'c2', nota: 4, comentario: 'Muito boa' }] }));
+  assert.equal(ok.status, 200);
+  const perfil = await casos.obterPerfil('d1');
+  assert.equal(perfil.avaliacoes[0].texto, 'Muito boa');
+  const de_novo = await corpo(await pedir('/casos/avaliarProfissional', { token: 'ana@x.com', args: [{ atendimentoId: alvo.atendimentoId, nota: 5 }] }));
+  assert.equal(de_novo.erro.codigo, 'JA_AVALIADO');
+  const alheio = await corpo(await pedir('/casos/avaliarCliente', { token: 'marlene@x.com', args: [{ atendimentoId: 'a5', nota: 3 }] }));
+  assert.equal(alheio.erro.codigo, 'NAO_ENCONTRADO'); // a5 é da Joana
+  const daMarlene = await corpo(await pedir('/casos/avaliarCliente', { token: 'marlene@x.com', args: [{ atendimentoId: alvo.atendimentoId, nota: 5 }] }));
+  assert.equal(daMarlene.status, 200);
+  const lados = await casos.avaliacoesDoAtendimento(alvo.atendimentoId);
+  assert.deepEqual([lados.doCliente.nota, lados.daDiarista.nota], [4, 5]);
+});

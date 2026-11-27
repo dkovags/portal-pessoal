@@ -1,12 +1,13 @@
 import {
   calcularAtendimento, validarPrecosDaDiarista, verificarLimiteSemanal, verificarJanela,
-  calcularCancelamentoPeloCliente, novoAtendimento, mudarStatus, confirmarChegada,
+  calcularCancelamentoPeloCliente, novoAtendimento, mudarStatus, confirmarChegada, remarcarAtendimento,
   STATUS, STATUS_ATIVOS, RegraDeNegocioViolada, PARAMETROS_PADRAO,
 } from '../dominio/index.js';
 import { chaveDia, deChave } from './datas.js';
 import { criarCasosDeCadastro } from './cadastro.js';
 import { criarCasosDeOperacao } from './operacao.js';
 import { criarCasosDeAcesso } from './acessos.js';
+import { criarCasosDeAvaliacao } from './avaliacoes.js';
 
 const HORAS = { diaria: 8, meiaDiaria: 4 };
 
@@ -67,6 +68,7 @@ export function criarCasosDeUso(dep) {
     ...(dep.candidaturas ? criarCasosDeCadastro(dep) : {}),
     ...(dep.ocorrencias ? criarCasosDeOperacao(dep) : {}),
     ...(dep.perfis ? criarCasosDeAcesso(dep) : {}),
+    ...(dep.avaliacoes ? criarCasosDeAvaliacao(dep) : {}),
     /** @param {{regiao?:string, data?:string, duracao?:'diaria'|'meiaDiaria'|'todas'}} f */
     async buscarProfissionais(f = {}) {
       const lista = await dep.diaristas.listar({ regiao: f.regiao });
@@ -154,10 +156,12 @@ export function criarCasosDeUso(dep) {
         await dep.notificador.enviar({ para: a.clienteId, canal: 'whatsapp', texto: 'A profissional não pode atender nessa data.' });
         return recusado;
       }
-      const { autorizacao } = await dep.pagamento.autorizar({ atendimentoId: a.id, valor: a.valores.totalCliente, metodo: a.metodo });
+      const jaAutorizado = Boolean(a.autorizacao); // remarcação: a cobrança autorizada continua valendo
+      const autorizacao = jaAutorizado ? a.autorizacao
+        : (await dep.pagamento.autorizar({ atendimentoId: a.id, valor: a.valores.totalCliente, metodo: a.metodo })).autorizacao;
       const aceito = { ...mudarStatus(a, STATUS.ACEITO), autorizacao };
       await dep.atendimentos.salvar(aceito);
-      if (aceito.modalidade === 'pacote') {
+      if (aceito.modalidade === 'pacote' && !jaAutorizado) {
         const pacote = await dep.pacotes.obterAtivo(a.clienteId, a.diaristaId);
         if (pacote) await dep.pacotes.salvar({ ...pacote, usados: pacote.usados + 1 });
       }
@@ -179,6 +183,51 @@ export function criarCasosDeUso(dep) {
       await dep.pagamento.capturarComSplit({ autorizacao: a.autorizacao, repasseDiarista: a.valores.recebeDiarista });
       await dep.atendimentos.salvar({ ...concluido, concluidoEm: dep.relogio.agora() });
       return concluido;
+    },
+
+    /** O que acontece se o cliente cancelar agora (sem cancelar). */
+    async simularCancelamento({ atendimentoId, clienteId }) {
+      const a = await dep.atendimentos.obter(atendimentoId);
+      if (!a || a.clienteId !== clienteId) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Reserva não encontrada.');
+      if (![STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status)) throw new RegraDeNegocioViolada('NAO_CANCELAVEL', 'Esta reserva não pode mais ser cancelada.');
+      return a.status === STATUS.SOLICITADO || !a.autorizacao
+        ? { gratuito: true, reembolsoCliente: a.valores.totalCliente, devidoDiarista: 0 }
+        : calcularCancelamentoPeloCliente({ inicio: a.inicio, totalCliente: a.valores.totalCliente, recebeDiarista: a.valores.recebeDiarista }, dep.relogio.agora(), parametros);
+    },
+
+    async remarcarAtendimento({ atendimentoId, clienteId, data, horaInicio }) {
+      const a = await dep.atendimentos.obter(atendimentoId);
+      if (!a || a.clienteId !== clienteId) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Reserva não encontrada.');
+      const d = await dep.diaristas.obter(a.diaristaId);
+      const horaFim = horaInicio + HORAS[a.duracao] + (a.duracao === 'diaria' ? 1 : 0);
+      verificarJanela(horaInicio, horaFim, parametros);
+      const janela = d.disponibilidade[data];
+      if (!janela || horaInicio < janela.inicio || horaFim > janela.fim) {
+        throw new RegraDeNegocioViolada('INDISPONIVEL', 'A profissional não tem esse horário livre.');
+      }
+      if ((await diasOcupados(d.id)).has(data) && chaveDia(a.inicio) !== data) {
+        throw new RegraDeNegocioViolada('INDISPONIVEL', 'A profissional já tem um pedido nesse dia.');
+      }
+      const novoInicio = deChave(data, horaInicio);
+      const daDupla = (await dep.atendimentos.listarPorCliente(clienteId))
+        .filter((x) => x.id !== a.id && x.diaristaId === d.id && STATUS_ATIVOS.includes(x.status));
+      verificarLimiteSemanal(novoInicio, daDupla.map((x) => x.inicio), parametros);
+      const remarcado = remarcarAtendimento(a, { inicio: novoInicio, horaInicio, horaFim, agora: dep.relogio.agora() });
+      await dep.atendimentos.salvar(remarcado);
+      await dep.notificador.enviar({ para: d.id, canal: 'whatsapp', texto: `Pedido remarcado para ${data}. Confirme se pode atender.` });
+      return remarcado;
+    },
+
+    /** Atendimentos recentes e próximos de quem pede ajuda (cliente ou diarista). */
+    async meusAtendimentos({ clienteId, diaristaId }) {
+      const lista = clienteId ? await dep.atendimentos.listarPorCliente(clienteId) : await dep.atendimentos.listarPorDiarista(diaristaId);
+      const limite = deChave(chaveDia(dep.relogio.agora())).getTime() - 30 * 864e5;
+      const saida = [];
+      for (const a of lista.filter((x) => x.inicio.getTime() >= limite && x.status !== STATUS.RECUSADO).sort((x, y) => y.inicio - x.inicio)) {
+        const outro = clienteId ? await dep.diaristas.obter(a.diaristaId) : await dep.clientes.obter(a.clienteId);
+        saida.push({ id: a.id, inicio: a.inicio, horaInicio: a.horaInicio, horaFim: a.horaFim, status: a.status, com: outro?.nome ?? '?' });
+      }
+      return saida;
     },
 
     async cancelarPeloCliente({ atendimentoId, clienteId }) {

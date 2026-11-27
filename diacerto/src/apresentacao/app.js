@@ -10,6 +10,7 @@ import { telaReserva } from './telas/reserva.js';
 import { telaMinhas } from './telas/minhas.js';
 import { telaDiarista } from './telas/diarista.js';
 import { telaAjuda } from './telas/ajuda.js';
+import { telaRemarcar } from './telas/remarcar.js';
 import { telaTrabalhe } from './telas/trabalhe.js';
 import { telaOperacao } from './telas/operacao.js';
 import { telaCadastro } from './telas/cadastro.js';
@@ -18,7 +19,7 @@ import { html } from './html.js';
 
 const ROTAS = {
   '': telaInicio, busca: telaBusca, profissional: telaPerfil, reserva: telaReserva,
-  minhas: telaMinhas, diarista: telaDiarista, ajuda: telaAjuda, trabalhe: telaTrabalhe,
+  minhas: telaMinhas, diarista: telaDiarista, ajuda: telaAjuda, remarcar: telaRemarcar, trabalhe: telaTrabalhe,
   operacao: (ctx, rota) => ({ cadastro: telaCadastro, atendimento: telaAtendimentoOperacao }[rota.params[0]] ?? telaOperacao)(ctx, rota),
 };
 
