@@ -1,12 +1,12 @@
 import {
-  novaCandidatura, pendenciasDaCandidatura, iniciaisDe, nomePublico,
+  novaCandidatura, pendenciasDaCandidatura, iniciaisDe, nomePublico, normalizarEmail, novoPerfil,
   STATUS_CANDIDATURA, ITENS_VERIFICACAO, RESULTADOS, RegraDeNegocioViolada, PARAMETROS_PADRAO,
 } from '../dominio/index.js';
 import { chaveDia } from './datas.js';
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const ORDEM = { contato: 0, em_cadastro: 1, aprovada: 2, reprovada: 3 };
-const EDITAVEIS = ['nome', 'celular', 'regioes', 'tarefas', 'naoFaz', 'anosExperiencia', 'precos', 'agenda'];
+const EDITAVEIS = ['email', 'nome', 'celular', 'regioes', 'tarefas', 'naoFaz', 'anosExperiencia', 'precos', 'agenda'];
 
 /**
  * Casos de uso do cadastro assistido de diaristas.
@@ -59,6 +59,11 @@ export function criarCasosDeCadastro(dep) {
       const nova = { ...c, status: STATUS_CANDIDATURA.EM_CADASTRO };
       for (const campo of EDITAVEIS) if (campo in alteracoes) nova[campo] = alteracoes[campo];
       if ('celular' in alteracoes || 'nome' in alteracoes) novaCandidatura(nova); // revalida nome e celular
+      if ('email' in alteracoes) {
+        nova.email = alteracoes.email ? normalizarEmail(alteracoes.email) : null;
+        const dono = nova.email && dep.perfis ? await dep.perfis.porEmail(nova.email) : null;
+        if (dono) throw new RegraDeNegocioViolada('EMAIL_EM_USO', `O e-mail ${nova.email} já tem acesso como ${dono.papel}.`);
+      }
       if (alteracoes.verificacao) {
         nova.verificacao = { ...c.verificacao };
         for (const [item, resultado] of Object.entries(alteracoes.verificacao)) {
@@ -101,10 +106,15 @@ export function criarCasosDeCadastro(dep) {
         avaliacoes: [],
       };
       await dep.diaristas.criar(diarista);
+      let acesso = null;
+      if (c.email && dep.perfis && !(await dep.perfis.porEmail(c.email))) {
+        acesso = novoPerfil({ email: c.email, papel: 'diarista', diaristaId: diarista.id });
+        await dep.perfis.salvar(acesso);
+      }
       const aprovada = { ...c, status: STATUS_CANDIDATURA.APROVADA, diaristaId: diarista.id };
       await dep.candidaturas.salvar(aprovada);
       await dep.notificador.enviar({ para: c.celular, canal: 'whatsapp', texto: 'Seu cadastro no DiaCerto foi aprovado.' });
-      return { candidatura: aprovada, diarista };
+      return { candidatura: aprovada, diarista, acesso };
     },
 
     async reprovarCandidatura(id, motivo) {

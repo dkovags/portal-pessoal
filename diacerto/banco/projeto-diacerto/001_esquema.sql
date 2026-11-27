@@ -124,6 +124,7 @@ create table diacerto.candidaturas (
   motivo_reprovacao text not null default '' check (length(motivo_reprovacao) <= 300),
   diarista_id text references diacerto.diaristas(id),
   criada_em timestamptz not null default now(),
+  email text check (email = lower(email)),
   check (status <> 'aprovada' or (diarista_id is not null and aceite_conduta_em is not null))
 );
 

@@ -1,9 +1,9 @@
 import { html } from '../html.js';
 import { erro } from '../componentes.js';
 import { moeda, dataCurta, horario } from '../formatos.js';
-import { TIPOS_OCORRENCIA, GRAVIDADES, ABERTO_POR } from '../../dominio/index.js';
+import { TIPOS_OCORRENCIA, GRAVIDADES, ABERTO_POR, PAPEIS, REGIOES_PILOTO } from '../../dominio/index.js';
 
-const ABAS = [['cadastros', 'Cadastros'], ['atendimentos', 'Atendimentos'], ['ocorrencias', 'Ocorrências'], ['indicadores', 'Indicadores']];
+const ABAS = [['cadastros', 'Cadastros'], ['atendimentos', 'Atendimentos'], ['ocorrencias', 'Ocorrências'], ['indicadores', 'Indicadores'], ['acessos', 'Acessos']];
 const STATUS_AT = { solicitado: 'Aguardando aceite', aceito: 'Confirmado', em_andamento: 'Em andamento', concluido: 'Concluído', recusado: 'Recusado', cancelado: 'Cancelado' };
 const FAIXA = { verde: 'Seguir', amarelo: 'Ajustar', vermelho: 'Parar ou mudar', sem_dados: 'Sem dados ainda' };
 
@@ -113,7 +113,7 @@ async function abaIndicadores(ctx) {
 
 export async function telaOperacao(ctx, rota) {
   const aba = ABAS.some(([k]) => k === rota.params[0]) ? rota.params[0] : 'cadastros';
-  const conteudo = await { cadastros: abaCadastros, atendimentos: abaAtendimentos, ocorrencias: abaOcorrencias, indicadores: abaIndicadores }[aba](ctx, rota);
+  const conteudo = await { cadastros: abaCadastros, atendimentos: abaAtendimentos, ocorrencias: abaOcorrencias, indicadores: abaIndicadores, acessos: abaAcessos }[aba](ctx, rota);
   return {
     html: html`
       <header class="topo entre"><h1 class="titulo">Operação</h1><a class="link-forte" href="#/">Início</a></header>
@@ -122,5 +122,75 @@ export async function telaOperacao(ctx, rota) {
       </nav>
       ${conteudo.html}`,
     ligar: conteudo.ligar,
+  };
+}
+
+async function abaAcessos(ctx) {
+  const dados = await ctx.casos.listarAcessos();
+  const e = ctx.estado('acessos', { erro: '', ok: '', cliente: { nome: '', endereco: '', regiao: REGIOES_PILOTO[0], email: '' }, vinculo: { email: '', diaristaId: '' }, outro: { email: '', papel: 'cliente', clienteId: '' } });
+  const opcao = (v, r, atual) => html`<option value="${v}" ${v === atual ? html`selected` : ''}>${r}</option>`;
+  return {
+    html: html`
+      ${e.ok ? html`<p class="ok" role="status">${e.ok}</p>` : ''}${erro(e.erro)}
+      <section class="pilha">
+        <h2 class="subtitulo">Quem tem acesso</h2>
+        ${dados.perfis.map((p) => html`
+          <div class="cartao entre">
+            <div class="pilha-curta"><strong class="pequeno">${p.email}</strong>
+              <span class="mudo mini">${PAPEIS[p.papel]}${p.nome ? ` · ${p.nome}` : ''}</span></div>
+            <button type="button" class="chip" data-remover="${p.email}" aria-label="Remover acesso de ${p.email}">Remover</button>
+          </div>`)}
+      </section>
+
+      <form class="cartao pilha-curta" data-cliente>
+        <h2 class="subtitulo">Cadastrar cliente</h2>
+        <label>Nome<input name="nome" value="${e.cliente.nome}" required></label>
+        <label>Endereço (quadra, bloco, apartamento)<input name="endereco" value="${e.cliente.endereco}" required></label>
+        <label>Região<select name="regiao">${REGIOES_PILOTO.map((r) => opcao(r, r, e.cliente.regiao))}</select></label>
+        <label>E-mail da conta Google (para entrar no DiaCerto)<input name="email" type="email" value="${e.cliente.email}" placeholder="opcional"></label>
+        <button class="btn">Cadastrar cliente</button>
+      </form>
+
+      <form class="cartao pilha-curta" data-vinculo>
+        <h2 class="subtitulo">Dar acesso a uma diarista</h2>
+        ${dados.diaristasSemAcesso.length ? html`
+          <label>Profissional<select name="diaristaId">${dados.diaristasSemAcesso.map((d) => opcao(d.id, d.nome, e.vinculo.diaristaId))}</select></label>
+          <label>E-mail da conta Google dela<input name="email" type="email" value="${e.vinculo.email}" required></label>
+          <button class="btn">Dar acesso</button>`
+          : html`<p class="mudo pequeno">Todas as profissionais aprovadas já têm acesso. Novas profissionais entram pelo cadastro assistido.</p>`}
+      </form>
+
+      <form class="cartao pilha-curta" data-outro>
+        <h2 class="subtitulo">Outros acessos</h2>
+        <label>Papel<select name="papel">${['cliente', 'operacao'].map((k) => opcao(k, PAPEIS[k], e.outro.papel))}</select></label>
+        ${e.outro.papel === 'cliente' ? html`<label>Cliente já cadastrado
+          <select name="clienteId">${dados.clientesSemAcesso.map((c) => opcao(c.id, `${c.nome} (${c.regiao})`, e.outro.clienteId))}</select></label>` : ''}
+        <label>E-mail da conta Google<input name="email" type="email" value="${e.outro.email}" required></label>
+        <span class="mudo mini">Operação vê e altera tudo, inclusive os acessos. Dê esse papel só a sócios e a quem atende.</span>
+        <button class="btn contorno">Dar acesso</button>
+      </form>`,
+    ligar(raiz) {
+      const agir = async (fn, ok) => { e.erro = ''; e.ok = ''; try { await fn(); e.ok = ok; } catch (falha) { e.erro = falha.message; } ctx.redesenhar(); };
+      const dadosDe = (form) => Object.fromEntries(new FormData(form));
+      raiz.querySelector('[data-cliente]').addEventListener('submit', (ev) => {
+        ev.preventDefault(); e.cliente = dadosDe(ev.currentTarget);
+        agir(async () => { await ctx.casos.cadastrarCliente({ ...e.cliente, email: e.cliente.email || null }); e.cliente = { nome: '', endereco: '', regiao: REGIOES_PILOTO[0], email: '' }; }, 'Cliente cadastrado.');
+      });
+      raiz.querySelector('[data-vinculo]').addEventListener('submit', (ev) => {
+        ev.preventDefault(); e.vinculo = dadosDe(ev.currentTarget);
+        if (!e.vinculo.diaristaId) return;
+        agir(async () => { await ctx.casos.concederAcesso({ email: e.vinculo.email, papel: 'diarista', diaristaId: e.vinculo.diaristaId }); e.vinculo = { email: '', diaristaId: '' }; }, 'Acesso liberado.');
+      });
+      const outro = raiz.querySelector('[data-outro]');
+      outro.querySelector('[name=papel]').addEventListener('change', (ev) => { e.outro = { ...dadosDe(outro), papel: ev.target.value }; ctx.redesenhar(); });
+      outro.addEventListener('submit', (ev) => {
+        ev.preventDefault(); e.outro = dadosDe(outro);
+        agir(async () => { await ctx.casos.concederAcesso({ email: e.outro.email, papel: e.outro.papel, clienteId: e.outro.clienteId || null }); e.outro = { email: '', papel: 'cliente', clienteId: '' }; }, 'Acesso liberado.');
+      });
+      raiz.querySelectorAll('[data-remover]').forEach((b) => b.addEventListener('click', () => {
+        if (b.dataset.confirmar !== 'sim') { b.dataset.confirmar = 'sim'; b.textContent = 'Confirmar remoção'; b.classList.add('ativo'); return; }
+        agir(() => ctx.casos.removerAcesso({ email: b.dataset.remover }), 'Acesso removido.');
+      }));
+    },
   };
 }

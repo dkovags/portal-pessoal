@@ -122,3 +122,21 @@ test('jwt: verifica assinatura Ed25519, validade e emissor', async () => {
   const adulterado = valido.replace(/\.([^.]+)\./, (_, c) => `.${b64({ sub: 'admin', exp: agora + 600 })}.`);
   await assert.rejects(verificar(adulterado), /Assinatura/);
 });
+
+test('api: operação cadastra cliente com acesso, vincula diarista e não remove a si mesma', { skip: pular }, async () => {
+  const novo = await corpo(await pedir('/casos/cadastrarCliente', { token: 'op@x.com', args: [{ nome: 'Fernanda Reis', endereco: 'SQN 312, Bloco A, apto 101', regiao: 'Asa Norte', email: 'Fernanda@X.com' }] }));
+  assert.equal(novo.status, 200);
+  assert.equal((await dep.perfis.porEmail('fernanda@x.com')).clienteId, novo.resultado.id);
+  const dup = await corpo(await pedir('/casos/concederAcesso', { token: 'op@x.com', args: [{ email: 'fernanda@x.com', papel: 'diarista', diaristaId: 'd2' }] }));
+  assert.equal(dup.erro.codigo, 'EMAIL_EM_USO');
+  const vinc = await corpo(await pedir('/casos/concederAcesso', { token: 'op@x.com', args: [{ email: 'joana@x.com', papel: 'diarista', diaristaId: 'd2' }] }));
+  assert.equal(vinc.status, 200);
+  const lista = await corpo(await pedir('/casos/listarAcessos', { token: 'op@x.com', args: [] }));
+  assert.ok(lista.resultado.perfis.some((p) => p.email === 'joana@x.com' && p.nome === 'Joana P.'));
+  assert.ok(!lista.resultado.diaristasSemAcesso.some((d) => d.id === 'd2'));
+  const proprio = await corpo(await pedir('/casos/removerAcesso', { token: 'op@x.com', args: [{ email: 'op@x.com' }] }));
+  assert.equal(proprio.erro.codigo, 'PROPRIO');
+  assert.equal((await pedir('/casos/cadastrarCliente', { token: 'ana@x.com', args: [{}] })).status, 403);
+  const rem = await corpo(await pedir('/casos/removerAcesso', { token: 'op@x.com', args: [{ email: 'joana@x.com' }] }));
+  assert.equal(rem.status, 200);
+});

@@ -52,12 +52,14 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
   (`#/trabalhe`) é aberto sem login.
 - O inicializador (`servidor/inicializador/index.mjs`) baixa do GitHub os arquivos de `servidor/arquivos.json`,
   fixados num commit pela variável `CODIGO_VERSAO`. Atualizar o servidor é trocar essa variável na função.
-- Dar acesso a alguém: `insert into diacerto.perfis (email, papel, cliente_id, diarista_id) values (...)`.
+- Acessos: na Operação, aba Acessos (cadastrar cliente, dar acesso a diarista ou à operação, remover). O cadastro
+  assistido também recebe o e-mail da diarista, e a aprovação já libera o acesso dela.
 
 ## Banco
 
 - Projeto atual: `banco/projeto-diacerto/001_esquema.sql` (esquema) e `002_carga_ficticia.sql`
   (gerado por `node banco/gerar-carga.js`).
+- `banco/projeto-diacerto/003_email_candidatura.sql`: e-mail da candidata (aplicada).
 - `banco/001` a `004`: esquema provisório usado antes no projeto Neon `diztudo`; ficou lá sem uso.
 
 ## Cadastro assistido de diaristas
@@ -115,6 +117,5 @@ Sem `DIACERTO_PG`, esses testes são pulados.
 ## Pendências para sair do protótipo
 
 - Provedor de pagamento com split e WhatsApp reais.
-- Tela para a operação cadastrar perfis de clientes e diaristas (hoje é por SQL).
 - Operações com várias gravações (aprovar cadastro) ainda não são atômicas.
 - Este repositório é público: dados reais de clientes e diaristas nunca devem entrar aqui.

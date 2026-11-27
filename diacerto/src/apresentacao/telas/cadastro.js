@@ -29,6 +29,7 @@ export async function telaCadastro(ctx, rota) {
       ${c.status === 'aprovada'
         ? html`<section class="cartao pilha-curta"><strong>Cadastro aprovado</strong>
             <span class="mudo pequeno">O perfil já aparece para os clientes nas regiões ${c.regioes.join(', ')}.</span>
+            <span class="mudo pequeno">${c.email ? `Acesso de diarista liberado para ${c.email}.` : 'Sem e-mail informado: libere o acesso dela em Operação, Acessos.'}</span>
             <a class="btn suave-btn" href="#/profissional/${c.diaristaId}">Ver o perfil publicado</a></section>`
         : html`<section class="cartao pilha-curta"><strong>Cadastro não aprovado</strong>
             <span class="mudo pequeno">Motivo registrado (uso interno): ${c.motivoReprovacao}</span></section>`}
@@ -44,6 +45,7 @@ export async function telaCadastro(ctx, rota) {
     1: () => html`
       <label>Nome completo<input name="nome" value="${c.nome}" required></label>
       <label>WhatsApp com DDD<input name="celular" inputmode="tel" value="${c.celular}" required></label>
+      <label>E-mail da conta Google (para ela entrar no DiaCerto)<input name="email" type="email" value="${c.email ?? ''}" placeholder="opcional"></label>
       <label>Anos de experiência<input name="anosExperiencia" inputmode="numeric" value="${c.anosExperiencia}"></label>
       <fieldset class="pilha-curta"><legend class="rotulo">Regiões onde atende</legend>
         <div class="chips">${REGIOES_PILOTO.map((r) => marcavel('regioes', r, r, c.regioes.includes(r)))}</div></fieldset>
@@ -131,7 +133,7 @@ export async function telaCadastro(ctx, rota) {
         ev.preventDefault();
         const f = new FormData(form);
         const alteracoes = {
-          1: () => ({ nome: f.get('nome'), celular: String(f.get('celular')).replace(/\D/g, ''), anosExperiencia: Number(f.get('anosExperiencia')) || 0, regioes: f.getAll('regioes') }),
+          1: () => ({ nome: f.get('nome'), email: String(f.get('email') ?? '').trim() || null, celular: String(f.get('celular')).replace(/\D/g, ''), anosExperiencia: Number(f.get('anosExperiencia')) || 0, regioes: f.getAll('regioes') }),
           2: () => ({ tarefas: f.getAll('tarefas'), naoFaz: String(f.get('naoFaz')).trim() }),
           3: () => ({ precos: { diaria: lerReais(f.get('diaria')) || 0, meiaDiaria: lerReais(f.get('meiaDiaria')) || 0, transporte: lerReais(f.get('transporte')) || 0, descontoPacote: (Number(f.get('descontoPacote')) || 0) / 100 } }),
           4: () => ({ agenda: { diasDaSemana: f.getAll('dias').map(Number), inicio: Number(f.get('inicio')), fim: Number(f.get('fim')) } }),

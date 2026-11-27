@@ -5,7 +5,7 @@ import {
   candidaturaDeLinha, linhaDeCandidatura, ocorrenciaDeLinha, linhaDeOcorrencia, chaveDia,
 } from '../mapeamento-sql.js';
 
-const TABELAS = new Set(['diaristas', 'atendimentos', 'pacotes', 'candidaturas', 'ocorrencias', 'disponibilidade', 'eventos']);
+const TABELAS = new Set(['diaristas', 'atendimentos', 'pacotes', 'candidaturas', 'ocorrencias', 'disponibilidade', 'eventos', 'clientes', 'perfis']);
 const coluna = (c) => { if (!/^[a-z_]+$/.test(c)) throw new Error(`coluna inválida: ${c}`); return c; };
 
 function gravar(db, tabela, linha, chave = 'id') {
@@ -62,6 +62,8 @@ export function criarRepositoriosPostgres(db, relogio) {
         const [c] = await db.consultar('select id, nome, endereco, regiao from diacerto.clientes where id = $1', [id]);
         return c ?? null;
       },
+      async listar() { return db.consultar('select id, nome, endereco, regiao from diacerto.clientes order by nome'); },
+      async criar(c) { await gravar(db, 'clientes', { id: c.id, nome: c.nome, endereco: c.endereco, regiao: c.regiao }); },
     },
     atendimentos: {
       async salvar(a) { await gravar(db, 'atendimentos', linhaDeAtendimento(a)); },
@@ -103,6 +105,12 @@ export function criarRepositoriosPostgres(db, relogio) {
         const [p] = await db.consultar('select email, papel, cliente_id, diarista_id from diacerto.perfis where email = lower($1)', [email]);
         return p ? { email: p.email, papel: p.papel, clienteId: p.cliente_id, diaristaId: p.diarista_id } : null;
       },
+      async listar() {
+        return (await db.consultar('select email, papel, cliente_id, diarista_id from diacerto.perfis'))
+          .map((p) => ({ email: p.email, papel: p.papel, clienteId: p.cliente_id, diaristaId: p.diarista_id }));
+      },
+      async salvar(p) { await gravar(db, 'perfis', { email: p.email, papel: p.papel, cliente_id: p.clienteId, diarista_id: p.diaristaId }, 'email'); },
+      async remover(email) { await db.executar('delete from diacerto.perfis where email = $1', [email]); },
       async emailDoUsuario(id) {
         const [u] = await db.consultar('select email from neon_auth."user" where id::text = $1 and coalesce(banned, false) = false', [id]);
         return u?.email ?? null;

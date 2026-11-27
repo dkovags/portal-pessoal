@@ -47,7 +47,10 @@ export async function autorizar(nome, args, perfil, dep) {
   if (!Array.isArray(args)) throw new RegraDeNegocioViolada('ARGUMENTOS', 'Argumentos inválidos.');
   if (publico.has(nome)) return args;
   if (!perfil) throw new SemPermissao('Entre com a sua conta para continuar.');
-  if (perfil.papel === 'operacao') return args; // operação: acesso completo (inclui a demonstração dos perfis)
+  if (perfil.papel === 'operacao') {
+    // operação: acesso completo (inclui a demonstração dos perfis); quem remove acesso é sempre quem está logado
+    return nome === 'removerAcesso' ? [args[0], perfil.email] : args;
+  }
   const regra = REGRAS[perfil.papel]?.[nome];
   if (!regra) throw new SemPermissao();
   return regra(args, perfil, dep);

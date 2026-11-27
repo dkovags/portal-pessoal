@@ -78,4 +78,4 @@ details summary{cursor:pointer;min-height:24px}
 .semaforo.verde{background:#DDEFEC;color:#0B4A44}.semaforo.amarelo{background:#FFF4E5;color:#7A3E06}
 .semaforo.vermelho{background:#FDE7E5;color:#8A1C12}.semaforo.sem_dados{background:#EEF0EC;color:var(--mudo)}
 .indicador.vermelho{border-color:#F3B8B2}
-.abas a{flex:1 1 0;padding:10px 4px;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.abas{flex-wrap:wrap;overflow:visible}.abas a{flex:1 0 auto;padding:10px 8px;font-size:12.5px}
