@@ -2,7 +2,7 @@
 // `db` é o construtor de consultas já apontado para o schema diacerto.
 import {
   diaristaDeLinha, linhaDeDiarista, atendimentoDeLinha, linhaDeAtendimento,
-  pacoteDeLinha, linhaDePacote, chaveDia, candidaturaDeLinha, linhaDeCandidatura,
+  pacoteDeLinha, linhaDePacote, chaveDia, candidaturaDeLinha, linhaDeCandidatura, ocorrenciaDeLinha, linhaDeOcorrencia,
 } from './mapeamento.js';
 
 export class FalhaNoBanco extends Error {
@@ -70,6 +70,7 @@ export function repositorioAtendimentosNeon(db) {
     },
     async listarPorCliente(id) { return (await exec('carregar os atendimentos', db.from('atendimentos').select('*').eq('cliente_id', id))).map(atendimentoDeLinha); },
     async listarPorDiarista(id) { return (await exec('carregar os atendimentos', db.from('atendimentos').select('*').eq('diarista_id', id))).map(atendimentoDeLinha); },
+    async listarTodos() { return (await exec('carregar os atendimentos', db.from('atendimentos').select('*'))).map(atendimentoDeLinha); },
   };
 }
 
@@ -119,5 +120,13 @@ export function repositorioCandidaturasNeon(db) {
       return l ? candidaturaDeLinha(l) : null;
     },
     async salvar(c) { await exec('salvar a candidatura', db.from('candidaturas').upsert(linhaDeCandidatura(c), { onConflict: 'id' })); },
+  };
+}
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioOcorrencias} */
+export function repositorioOcorrenciasNeon(db) {
+  return {
+    async listar() { return (await exec('carregar as ocorrências', db.from('ocorrencias').select('*'))).map(ocorrenciaDeLinha); },
+    async salvar(o) { await exec('salvar a ocorrência', db.from('ocorrencias').upsert(linhaDeOcorrencia(o), { onConflict: 'id' })); },
   };
 }

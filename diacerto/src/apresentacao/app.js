@@ -12,12 +12,13 @@ import { telaAjuda } from './telas/ajuda.js';
 import { telaTrabalhe } from './telas/trabalhe.js';
 import { telaOperacao } from './telas/operacao.js';
 import { telaCadastro } from './telas/cadastro.js';
+import { telaAtendimentoOperacao } from './telas/atendimento-operacao.js';
 import { html } from './html.js';
 
 const ROTAS = {
   '': telaInicio, busca: telaBusca, profissional: telaPerfil, reserva: telaReserva,
   minhas: telaMinhas, diarista: telaDiarista, ajuda: telaAjuda, trabalhe: telaTrabalhe,
-  operacao: (ctx, rota) => (rota.params[0] === 'cadastro' ? telaCadastro(ctx, rota) : telaOperacao(ctx, rota)),
+  operacao: (ctx, rota) => ({ cadastro: telaCadastro, atendimento: telaAtendimentoOperacao }[rota.params[0]] ?? telaOperacao)(ctx, rota),
 };
 
 function lerRota() {

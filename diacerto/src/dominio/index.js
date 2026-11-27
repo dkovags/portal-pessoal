@@ -5,3 +5,5 @@ export * from './precificacao.js';
 export * from './regras.js';
 export * from './atendimento.js';
 export * from './candidatura.js';
+export * from './ocorrencia.js';
+export * from './indicadores.js';

@@ -73,3 +73,9 @@ fieldset{border:none;padding:0;margin:0;min-width:0}fieldset.cartao{padding:14px
 .passos-nav a.ativo{background:var(--primaria);color:#fff}
 .lista{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
 details summary{cursor:pointer;min-height:24px}
+.cartao.alerta{border:2px solid var(--erro)}
+.semaforo{align-self:flex-start;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px}
+.semaforo.verde{background:#DDEFEC;color:#0B4A44}.semaforo.amarelo{background:#FFF4E5;color:#7A3E06}
+.semaforo.vermelho{background:#FDE7E5;color:#8A1C12}.semaforo.sem_dados{background:#EEF0EC;color:var(--mudo)}
+.indicador.vermelho{border-color:#F3B8B2}
+.abas a{flex:1 1 0;padding:10px 4px;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis}

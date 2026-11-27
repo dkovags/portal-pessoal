@@ -72,3 +72,14 @@ export const linhaDeCandidatura = (c) => ({
   verificacao: c.verificacao, aceite_conduta_em: c.aceiteConduta, motivo_reprovacao: c.motivoReprovacao,
   diarista_id: c.diaristaId, ...(c.criadaEm ? { criada_em: new Date(c.criadaEm).toISOString() } : {}),
 });
+
+export const ocorrenciaDeLinha = (l) => ({
+  id: l.id, atendimentoId: l.atendimento_id, tipo: l.tipo, gravidade: l.gravidade, abertoPor: l.aberto_por,
+  descricao: l.descricao, status: l.status, abertaEm: new Date(l.aberta_em),
+  resolvidaEm: l.resolvida_em ? new Date(l.resolvida_em) : null, resolucao: l.resolucao ?? '', reembolso: l.reembolso ?? 0,
+});
+export const linhaDeOcorrencia = (o) => ({
+  id: o.id, atendimento_id: o.atendimentoId, tipo: o.tipo, gravidade: o.gravidade, aberto_por: o.abertoPor,
+  descricao: o.descricao, status: o.status, aberta_em: new Date(o.abertaEm).toISOString(),
+  resolvida_em: o.resolvidaEm ? new Date(o.resolvidaEm).toISOString() : null, resolucao: o.resolucao, reembolso: o.reembolso,
+});

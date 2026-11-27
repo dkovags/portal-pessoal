@@ -80,6 +80,7 @@ export function gerarDadosFicticios(hoje) {
     atendimento('c2', 'd1', -3, STATUS.CONCLUIDO),
     atendimento('c3', 'd1', -2, STATUS.CONCLUIDO),
     atendimento('c2', 'd1', proximoDiaUtil(hoje, 3), STATUS.SOLICITADO),
+    atendimento('c3', 'd2', -5, STATUS.CANCELADO),
   ];
   atendimentos[atendimentos.length - 1].observacoes = 'Tenho um gato. A chave fica na portaria.';
 
@@ -96,7 +97,17 @@ export function gerarDadosFicticios(hoje) {
   };
   for (const item of ['identidade', 'certidao_pcdf', 'certidao_pf', 'referencia_1']) emCadastro.verificacao[item] = { resultado: 'ok', data: chave(somarDias(hoje, -2)) };
 
-  return { diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
+  const ocorrencias = [
+    { id: 'o1', atendimentoId: 'a6', tipo: 'dano', gravidade: 'moderada', abertoPor: 'cliente',
+      descricao: 'Um vaso de vidro da sala trincou durante a limpeza. A cliente enviou foto pelo WhatsApp.',
+      status: 'aberta', abertaEm: new Date(hoje.getTime() - 26 * 36e5), resolvidaEm: null, resolucao: '', reembolso: 0 },
+    { id: 'o2', atendimentoId: 'a3', tipo: 'atraso', gravidade: 'leve', abertoPor: 'cliente',
+      descricao: 'A profissional chegou 40 minutos depois do combinado por problema no ônibus.',
+      status: 'resolvida', abertaEm: new Date(hoje.getTime() - 14 * 864e5), resolvidaEm: new Date(hoje.getTime() - 13 * 864e5),
+      resolucao: 'Conversamos com as duas partes; a profissional avisou do atraso e compensou o horário no fim.', reembolso: 0 },
+  ];
+
+  return { ocorrencias, diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
 }
 
 function proximoDiaUtil(hoje, minimo) {

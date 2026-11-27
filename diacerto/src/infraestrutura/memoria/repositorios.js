@@ -43,6 +43,7 @@ export function repositorioAtendimentosEmMemoria(iniciais = []) {
     async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
     async listarPorCliente(id) { return todos().filter((a) => a.clienteId === id); },
     async listarPorDiarista(id) { return todos().filter((a) => a.diaristaId === id); },
+    async listarTodos() { return todos(); },
   };
 }
 
@@ -63,4 +64,13 @@ export function repositorioPacotesEmMemoria(iniciais = [], relogio) {
 /** @returns {import('../../aplicacao/portas.js').ServicoCupons} */
 export function cuponsEmMemoria(tabela) {
   return { async valor(codigo) { return tabela[String(codigo).trim().toUpperCase()] ?? null; } };
+}
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioOcorrencias} */
+export function repositorioOcorrenciasEmMemoria(iniciais = []) {
+  const dados = new Map(iniciais.map((o) => [o.id, clonar(o)]));
+  return {
+    async listar() { return [...dados.values()].map(clonar); },
+    async salvar(o) { dados.set(o.id, clonar(o)); },
+  };
 }
