@@ -48,6 +48,13 @@
  * @property {(id:string) => Promise<import('../dominio/atendimento.js').Atendimento|null>} obter
  * @property {(clienteId:string) => Promise<import('../dominio/atendimento.js').Atendimento[]>} listarPorCliente
  * @property {(diaristaId:string) => Promise<import('../dominio/atendimento.js').Atendimento[]>} listarPorDiarista
+ * @property {() => Promise<import('../dominio/atendimento.js').Atendimento[]>} listarTodos
+ */
+
+/**
+ * @typedef {object} RepositorioOcorrencias
+ * @property {() => Promise<ReturnType<import('../dominio/ocorrencia.js').novaOcorrencia>[]>} listar
+ * @property {(o:ReturnType<import('../dominio/ocorrencia.js').novaOcorrencia>) => Promise<void>} salvar
  */
 
 /**

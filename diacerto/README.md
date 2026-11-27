@@ -44,6 +44,7 @@ Memória e Neon implementam as mesmas portas de `aplicacao/portas.js`; a raiz de
 - `banco/001_esquema.sql`: tabelas, restrições (pisos, janela, coerência dos valores), permissões e RLS.
 - `banco/002_carga_ficticia.sql`: carga inicial, gerada por `node banco/gerar-carga.js` (datas relativas ao dia da geração).
 - `banco/003_candidaturas.sql`: cadastro assistido de diaristas (só resultado e data da verificação, sem cópias de documentos).
+- `banco/004_ocorrencias.sql`: ocorrências e reembolsos, com a Política de Reembolso também como restrição do banco.
 - Para dar acesso a outra pessoa: `insert into diacerto.autorizados (email) values ('pessoa@gmail.com');`
 - A Data API do projeto expõe os schemas `public` (DizTudo) e `diacerto`, com CORS só para `https://pessoal.kovags.com`.
 
@@ -55,6 +56,17 @@ Memória e Neon implementam as mesmas portas de `aplicacao/portas.js`; a raiz de
   só é liberada sem pendências: preços acima do piso, agenda inicial, os seis itens de verificação conferidos e
   o aceite do código de conduta registrado. Aprovar cria o perfil (primeiro nome e inicial do sobrenome) e a
   agenda das próximas 3 semanas. A reprovação exige motivo, de uso interno.
+
+## Painel da operação (`#/operacao`)
+
+- **Cadastros:** fila de candidaturas e cadastro assistido.
+- **Atendimentos:** todos os atendimentos, filtráveis por situação, com valores e ocorrências.
+- **Ocorrências:** registro (dano, falta, atraso, qualidade, assédio ou risco, acidente) e resolução com reembolso.
+  Assédio, risco e acidente são sempre graves e avisam a operação. Reembolso só em dano (até R$ 500) ou falta da
+  profissional (até o valor pago), feito pelo provedor e nunca descontado da profissional.
+- **Indicadores:** os critérios de interrupção do piloto (recompra em 30 dias, pares que sumiram, cancelamentos,
+  faltas, margem de contribuição média e ocorrências graves abertas há mais de 72h), com faixa seguir, ajustar ou
+  parar, além dos números do mês. Custos e faixas ficam em `src/dominio/parametros.js`.
 
 ## Regras de negócio implementadas
 

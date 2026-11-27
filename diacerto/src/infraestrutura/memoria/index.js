@@ -1,7 +1,7 @@
 import { gerarDadosFicticios } from './dados-ficticios.js';
 import {
   repositorioDiaristasEmMemoria, repositorioClientesEmMemoria, repositorioAtendimentosEmMemoria,
-  repositorioPacotesEmMemoria, cuponsEmMemoria, repositorioCandidaturasEmMemoria,
+  repositorioPacotesEmMemoria, cuponsEmMemoria, repositorioCandidaturasEmMemoria, repositorioOcorrenciasEmMemoria,
 } from './repositorios.js';
 import { pagamentoSimulado, notificadorSimulado, relogio as criarRelogio, geradorDeIds } from './servicos.js';
 
@@ -16,6 +16,7 @@ export function criarInfraestruturaEmMemoria(op = {}) {
     pacotes: repositorioPacotesEmMemoria(dados.pacotes, relogio),
     cupons: cuponsEmMemoria(dados.cupons),
     candidaturas: repositorioCandidaturasEmMemoria(dados.candidaturas),
+    ocorrencias: repositorioOcorrenciasEmMemoria(dados.ocorrencias),
     pagamento: pagamentoSimulado(),
     notificador: notificadorSimulado(),
     relogio,

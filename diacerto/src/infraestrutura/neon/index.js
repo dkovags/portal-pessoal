@@ -1,7 +1,7 @@
 // Infraestrutura sobre o Neon: login Google (Neon Auth) e Data API no schema diacerto.
 import {
   repositorioDiaristasNeon, repositorioClientesNeon, repositorioAtendimentosNeon,
-  repositorioPacotesNeon, cuponsNeon, pagamentoRegistrado, notificadorRegistrado, repositorioCandidaturasNeon,
+  repositorioPacotesNeon, cuponsNeon, pagamentoRegistrado, notificadorRegistrado, repositorioCandidaturasNeon, repositorioOcorrenciasNeon,
 } from './repositorios.js';
 
 export const CONFIG_NEON = Object.freeze({
@@ -24,6 +24,7 @@ export function criarInfraestruturaNeon(db) {
     pacotes: repositorioPacotesNeon(db, relogio),
     cupons: cuponsNeon(db),
     candidaturas: repositorioCandidaturasNeon(db),
+    ocorrencias: repositorioOcorrenciasNeon(db),
     pagamento: pagamentoRegistrado(db),
     notificador: notificadorRegistrado(db),
     relogio,
