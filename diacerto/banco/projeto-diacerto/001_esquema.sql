@@ -11,7 +11,8 @@ create table diacerto.clientes (
   endereco text not null,
   regiao text not null,
   celular text check (celular ~ '^\d{10,11}$'),
-  criado_em timestamptz not null default now()
+  criado_em timestamptz not null default now(),
+  imovel jsonb
 );
 
 create table diacerto.diaristas (
@@ -28,7 +29,8 @@ create table diacerto.diaristas (
   transporte integer not null default 0 check (transporte >= 0),
   desconto_pacote numeric(4,3) not null default 0 check (desconto_pacote between 0 and 0.30),
   verificacao_data text,
-  verificacao_resultado text
+  verificacao_resultado text,
+  leva_materiais boolean not null default false
 );
 
 create table diacerto.disponibilidade (
@@ -115,7 +117,17 @@ create table diacerto.atendimentos (
   pacote_id text references diacerto.pacotes(id),
   taxa_cancelamento integer not null default 0 check (taxa_cancelamento >= 0),
   politica_cancelamento jsonb,
+  imovel jsonb,
+  tarefas text[] not null default '{}',
+  materiais text not null default 'cliente' check (materiais in ('cliente', 'profissional')),
+  repasse_status text check (repasse_status in ('aguardando', 'liberado', 'contestado', 'retido')),
+  repasse_liberar_em timestamptz,
+  repasse_decidido_em timestamptz,
+  repasse_origem text check (repasse_origem in ('cliente', 'prazo', 'operacao')),
   constraint atendimentos_pacote_check check ((modalidade = 'pacote') = (pacote_id is not null)),
+  constraint atendimentos_repasse_check check ((status = 'concluido') = (repasse_status is not null)
+    and (repasse_status is null or repasse_liberar_em is not null)
+    and (repasse_status not in ('liberado', 'retido') or repasse_decidido_em is not null)),
   check (hora_inicio >= 7 and hora_fim <= 20 and hora_fim > hora_inicio),
   check (total_cliente = servico + transporte + taxa_cliente - cupom),
   check (recebe_diarista = servico - comissao + transporte),
@@ -178,6 +190,7 @@ create table diacerto.ocorrencias (
   resolvida_em timestamptz,
   resolucao text not null default '' check (length(resolucao) <= 1000),
   reembolso integer not null default 0 check (reembolso >= 0),
+  contestacao boolean not null default false,
   check (tipo not in ('seguranca', 'acidente') or gravidade = 'grave'),
   check (tipo <> 'dano' or reembolso <= 50000),
   check (reembolso = 0 or tipo in ('dano', 'falta_diarista')),
@@ -228,3 +241,12 @@ create table diacerto.parametros (
 insert into diacerto.parametros (valores, motivo, alterado_por) values (
   '{"comissao":{"avulso":0.2,"pacote":0.15},"taxaCliente":{"avulso":1500,"pacote":1200},"piso":{"diaria":13000,"meiaDiaria":7000},"cancelamento":{"horasGratuitas":24,"percentualDevidoDiarista":0.5},"pacote":{"quantidade":4,"descontoMaximo":0.3,"validadeMeses":3}}',
   'Valores iniciais do piloto (documento de análise crítica).', 'sistema');
+
+-- Endereço e instruções de acesso de cada atendimento, à parte: só vão para a profissional
+-- depois do aceite e até o fim do dia do atendimento (a API decide).
+create table diacerto.locais_atendimento (
+  atendimento_id text primary key references diacerto.atendimentos(id),
+  endereco text not null check (length(endereco) between 5 and 200),
+  instrucoes text not null default '' check (length(instrucoes) <= 300),
+  atualizado_em timestamptz not null default now()
+);

@@ -12,6 +12,7 @@ export function diaristaDeLinha(l) {
     disponibilidade: Object.fromEntries((l.disponibilidade ?? []).map((x) => [x.data, { inicio: x.hora_inicio, fim: x.hora_fim }])),
     verificacao: l.verificacao_data ? { data: l.verificacao_data, resultado: l.verificacao_resultado } : null,
     avaliacoes: (l.avaliacoes ?? []).map((a) => ({ nota: Number(a.nota), texto: a.texto, autor: a.autor, mes: a.mes })),
+    levaMateriais: Boolean(l.leva_materiais),
   };
 }
 
@@ -22,6 +23,7 @@ export function linhaDeDiarista(d) {
     diaria: d.precos.diaria, meia_diaria: d.precos.meiaDiaria, transporte: d.precos.transporte,
     desconto_pacote: d.precos.descontoPacote,
     verificacao_data: d.verificacao?.data ?? null, verificacao_resultado: d.verificacao?.resultado ?? null,
+    leva_materiais: Boolean(d.levaMateriais),
   };
 }
 
@@ -34,6 +36,9 @@ export function atendimentoDeLinha(l) {
     autorizacao: l.autorizacao ?? undefined, concluidoEm: l.concluido_em ? new Date(l.concluido_em) : undefined, remarcacoes: l.remarcacoes ?? 0,
     pacoteId: l.pacote_id ?? null, taxaCancelamento: l.taxa_cancelamento ?? 0,
     ...(l.politica_cancelamento ? { politicaCancelamento: l.politica_cancelamento } : {}),
+    imovel: l.imovel ?? null, tarefas: l.tarefas ?? [], materiais: l.materiais ?? 'cliente',
+    repasse: l.repasse_status ? { status: l.repasse_status, liberarEm: new Date(l.repasse_liberar_em),
+      decididoEm: l.repasse_decidido_em ? new Date(l.repasse_decidido_em) : null, origem: l.repasse_origem ?? null } : null,
     valores: {
       servico: l.servico, transporte: l.transporte, taxaCliente: l.taxa_cliente, cupom: l.cupom, comissao: l.comissao,
       totalCliente: l.total_cliente, recebeDiarista: l.recebe_diarista, receitaPlataforma: l.receita_plataforma,
@@ -50,6 +55,11 @@ export function linhaDeAtendimento(a) {
     codigo_confirmacao: a.codigoConfirmacao, autorizacao: a.autorizacao ?? null,
     concluido_em: a.concluidoEm ? new Date(a.concluidoEm).toISOString() : null, remarcacoes: a.remarcacoes ?? 0,
     pacote_id: a.pacoteId ?? null, taxa_cancelamento: a.taxaCancelamento ?? 0, politica_cancelamento: a.politicaCancelamento ?? null,
+    imovel: a.imovel ?? null, tarefas: a.tarefas ?? [], materiais: a.materiais ?? 'cliente',
+    repasse_status: a.repasse?.status ?? null,
+    repasse_liberar_em: a.repasse?.liberarEm ? new Date(a.repasse.liberarEm).toISOString() : null,
+    repasse_decidido_em: a.repasse?.decididoEm ? new Date(a.repasse.decididoEm).toISOString() : null,
+    repasse_origem: a.repasse?.origem ?? null,
     servico: v.servico, transporte: v.transporte, taxa_cliente: v.taxaCliente, cupom: v.cupom, comissao: v.comissao,
     total_cliente: v.totalCliente, recebe_diarista: v.recebeDiarista, receita_plataforma: v.receitaPlataforma,
   };
@@ -99,9 +109,11 @@ export const ocorrenciaDeLinha = (l) => ({
   id: l.id, atendimentoId: l.atendimento_id, tipo: l.tipo, gravidade: l.gravidade, abertoPor: l.aberto_por,
   descricao: l.descricao, status: l.status, abertaEm: new Date(l.aberta_em),
   resolvidaEm: l.resolvida_em ? new Date(l.resolvida_em) : null, resolucao: l.resolucao ?? '', reembolso: l.reembolso ?? 0,
+  contestacao: Boolean(l.contestacao),
 });
 export const linhaDeOcorrencia = (o) => ({
   id: o.id, atendimento_id: o.atendimentoId, tipo: o.tipo, gravidade: o.gravidade, aberto_por: o.abertoPor,
   descricao: o.descricao, status: o.status, aberta_em: new Date(o.abertaEm).toISOString(),
   resolvida_em: o.resolvidaEm ? new Date(o.resolvidaEm).toISOString() : null, resolucao: o.resolucao, reembolso: o.reembolso,
+  contestacao: Boolean(o.contestacao),
 });

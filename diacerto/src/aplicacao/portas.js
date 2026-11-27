@@ -12,11 +12,18 @@
  * @property {{nota:number, texto:string, autor:string, mes:string}[]} avaliacoes
  */
 
-/** @typedef {{id:string, nome:string, endereco:string, regiao:string, celular?:string|null}} Cliente */
+/** @typedef {{id:string, nome:string, endereco:string, regiao:string, celular?:string|null, imovel?:any}} Cliente */
 /**
  * @typedef {object} RepositorioAceites
  * @property {(email:string) => Promise<{documento:string, versao:string, aceitoEm:Date}[]>} listar
  * @property {(a:{email:string, documento:string, versao:string, aceitoEm:Date}) => Promise<void>} registrar
+ */
+/**
+ * Endereço e instruções de acesso de cada atendimento (RF01), guardados à parte: só vão para a
+ * profissional quando o caso de uso pede, depois do aceite.
+ * @typedef {object} RepositorioLocais
+ * @property {(atendimentoId:string) => Promise<{endereco:string, instrucoes:string}|null>} obter
+ * @property {(atendimentoId:string, local:{endereco:string, instrucoes:string}) => Promise<void>} salvar
  */
 /**
  * Versões dos parâmetros comerciais (só a parte editável), da mais recente para a mais antiga.
@@ -62,7 +69,7 @@
  * @property {(c:Candidatura) => Promise<void>} salvar
  */
 
-/** @typedef {{obter:(id:string)=>Promise<Cliente|null>, listar:()=>Promise<Cliente[]>, criar:(c:Cliente)=>Promise<void>}} RepositorioClientes */
+/** @typedef {{obter:(id:string)=>Promise<Cliente|null>, listar:()=>Promise<Cliente[]>, criar:(c:Cliente)=>Promise<void>, salvar:(c:Cliente)=>Promise<void>}} RepositorioClientes */
 
 /**
  * @typedef {object} RepositorioAtendimentos
@@ -109,8 +116,9 @@
  * Provedor de pagamento com split. O dinheiro nunca fica em conta da DiaCerto.
  * @typedef {object} ServicoPagamento
  * @property {(p:{atendimentoId:string, valor:number, metodo:string}) => Promise<{autorizacao:string}>} autorizar
- * @property {(p:{autorizacao:string, repasseDiarista:number}) => Promise<void>} capturarComSplit
- * @property {(p:{autorizacao:string, valor:number}) => Promise<void>} estornar
+ * @property {(p:{autorizacao:string, repasseDiarista:number, motivo?:string, idempotencia?:string}) => Promise<void>} capturarComSplit
+ *   idempotencia: o provedor real não repete uma captura com a mesma chave
+ * @property {(p:{autorizacao:string, valor:number, motivo?:string}) => Promise<void>} estornar
  */
 
 /** @typedef {{enviar:(m:{para:string, canal:'whatsapp'|'email', texto:string})=>Promise<void>}} Notificador */

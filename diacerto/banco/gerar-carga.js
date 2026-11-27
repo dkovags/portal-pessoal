@@ -20,6 +20,7 @@ const sql = [
   tabela('avaliacoes', d.diaristas.flatMap((x) => x.avaliacoes.map((a) => ({ diarista_id: x.id, ...a })))),
   tabela('pacotes', d.pacotes.map(linhaDePacote)),
   tabela('atendimentos', d.atendimentos.map(linhaDeAtendimento)),
+  tabela('locais_atendimento', Object.entries(d.locais).map(([id, l]) => ({ atendimento_id: id, endereco: l.endereco, instrucoes: l.instrucoes }))),
   tabela('cupons', Object.entries(d.cupons).map(([codigo, valor]) => ({ codigo, valor, ativo: true }))),
   tabela('candidaturas', d.candidaturas.map(linhaDeCandidatura)),
   tabela('ocorrencias', d.ocorrencias.map(linhaDeOcorrencia)),

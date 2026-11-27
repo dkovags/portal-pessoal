@@ -29,7 +29,7 @@ export async function telaPerfil(ctx, rota) {
       <section class="pilha-curta">
         <h2 class="subtitulo">O que ela faz</h2>
         <div class="chips">${p.tarefas.map((t) => html`<span class="etiqueta neutra">${t}</span>`)}</div>
-        <p class="mudo pequeno">Não faz: ${p.naoFaz} Produtos e equipamentos ficam por conta do cliente.</p>
+        <p class="mudo pequeno">Não faz: ${p.naoFaz} ${p.levaMateriais ? 'Pode levar os produtos de limpeza, se você pedir; os equipamentos são seus.' : 'Produtos e equipamentos ficam por conta do cliente.'}</p>
       </section>
       <section class="pilha-curta">
         <h2 class="subtitulo">Como contratar</h2>

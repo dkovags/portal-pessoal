@@ -2,7 +2,9 @@ import {
   calcularAtendimento, validarPrecosDaDiarista, verificarLimiteSemanal, verificarJanela,
   calcularCancelamentoPeloCliente, novoAtendimento, mudarStatus, confirmarChegada, remarcarAtendimento,
   novoPacote, situacaoDoPacote, encerrarPacote as fecharPacote, aplicarParametros,
-  STATUS, STATUS_ATIVOS, RegraDeNegocioViolada, PARAMETROS_PADRAO,
+  novoLocal, normalizarInstrucoes, localVisivelParaDiarista, instrucoesEditaveis, novoImovel, novoEscopo,
+  concluirPelaDiarista, confirmarConclusao, contestarConclusao, prazoDeContestacaoAberto, novaOcorrencia,
+  STATUS, STATUS_ATIVOS, REPASSE, RegraDeNegocioViolada, PARAMETROS_PADRAO,
 } from '../dominio/index.js';
 import { chaveDia, deChave } from './datas.js';
 import { criarCasosDeCadastro } from './cadastro.js';
@@ -10,6 +12,7 @@ import { criarCasosDeOperacao } from './operacao.js';
 import { criarCasosDeAcesso } from './acessos.js';
 import { criarCasosDeAvaliacao } from './avaliacoes.js';
 import { criarCasosDeParametros } from './parametros.js';
+import { comRepassesEmDia, pagarRepasse } from './repasses.js';
 
 const HORAS = { diaria: 8, meiaDiaria: 4 };
 
@@ -26,6 +29,7 @@ function media(avaliacoes) {
  *   cupons:import('./portas.js').ServicoCupons, pagamento:import('./portas.js').ServicoPagamento,
  *   notificador:import('./portas.js').Notificador, relogio:import('./portas.js').Relogio,
  *   ids:import('./portas.js').GeradorDeIds, configuracao?:import('./portas.js').RepositorioParametros,
+ *   locais:import('./portas.js').RepositorioLocais, ocorrencias?:import('./portas.js').RepositorioOcorrencias,
  *   parametros?:typeof PARAMETROS_PADRAO}} dep
  */
 export function criarCasosDeUso(dep) {
@@ -41,6 +45,13 @@ export function criarCasosDeUso(dep) {
 
 function montarCasos(dep) {
   const parametros = dep.parametros ?? PARAMETROS_PADRAO;
+  const horasParaContestar = (parametros.conclusao ?? PARAMETROS_PADRAO.conclusao).horasParaContestar;
+
+  async function doCliente(atendimentoId, clienteId) {
+    const a = await dep.atendimentos.obter(atendimentoId);
+    if (!a || a.clienteId !== clienteId) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Atendimento não encontrado.');
+    return a;
+  }
 
   function precoDe(diarista, duracao, modalidade, cupom = 0) {
     return calcularAtendimento({
@@ -122,7 +133,7 @@ function montarCasos(dep) {
       if (!d) throw new RegraDeNegocioViolada('NAO_ENCONTRADA', 'Profissional não encontrada.');
       return {
         ...resumo(d, await concluidosCom(d.id), duracao),
-        naoFaz: d.naoFaz, verificacao: d.verificacao, avaliacoes: d.avaliacoes,
+        naoFaz: d.naoFaz, verificacao: d.verificacao, avaliacoes: d.avaliacoes, levaMateriais: Boolean(d.levaMateriais),
         avulso: precoDe(d, duracao, 'avulso'),
         pacote: { ...precoDe(d, duracao, 'pacote'), quantidade: parametros.pacote.quantidade,
           validadeMeses: parametros.pacote.validadeMeses, desconto: d.precos.descontoPacote },
@@ -163,6 +174,10 @@ function montarCasos(dep) {
         .some((a) => chaveDia(a.inicio) === p.data && [STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status));
       if (ocupado) throw new RegraDeNegocioViolada('INDISPONIVEL', 'A profissional já tem um pedido nesse dia.');
 
+      // RF02: como é o imóvel (lembrado do último pedido) e o que precisa ser feito; RF01: onde, à parte
+      const imovel = novoImovel(p.imovel ?? c.imovel ?? {});
+      const escopo = novoEscopo({ tarefas: p.tarefas ?? d.tarefas, materiais: p.materiais }, d);
+      const local = novoLocal({ endereco: c.endereco, instrucoes: p.instrucoes });
       const sim = await casos.simularReserva({ diaristaId: d.id, clienteId: c.id, duracao: p.duracao, codigoCupom: p.codigoCupom });
       if (p.modalidade === 'pacote' && sim.modalidade !== 'pacote') {
         throw new RegraDeNegocioViolada('SEM_PACOTE', 'Você não tem pacote com saldo com esta profissional para esta duração. Compre o pacote antes de agendar por ele.');
@@ -173,8 +188,11 @@ function montarCasos(dep) {
         observacoes: (p.observacoes ?? '').slice(0, 500), codigoConfirmacao: dep.ids.codigo(),
         pacoteId: sim.pacoteAtivo?.id ?? null, autorizacao: sim.pacoteAtivo?.autorizacao ?? undefined,
         politicaCancelamento: sim.politicaCancelamento, taxaCancelamento: 0,
+        imovel, tarefas: escopo.tarefas, materiais: escopo.materiais, repasse: null,
       });
       await dep.atendimentos.salvar(atendimento);
+      await dep.locais.salvar(atendimento.id, local);
+      if (p.imovel) await dep.clientes.salvar({ ...c, imovel });
       await dep.notificador.enviar({ para: d.id, canal: 'whatsapp', texto: `Novo pedido de ${c.nome} para ${p.data}.` });
       return atendimento;
     },
@@ -207,13 +225,57 @@ function montarCasos(dep) {
       return atualizado;
     },
 
-    /** Conclusão libera o repasse via split do provedor. */
+    /** A profissional marca a conclusão; o cliente tem o prazo para confirmar ou contestar (RF03). */
     async concluirAtendimento({ atendimentoId }) {
       const a = await dep.atendimentos.obter(atendimentoId);
-      const concluido = mudarStatus(a, STATUS.CONCLUIDO);
-      await dep.pagamento.capturarComSplit({ autorizacao: a.autorizacao, repasseDiarista: a.valores.recebeDiarista });
-      await dep.atendimentos.salvar({ ...concluido, concluidoEm: dep.relogio.agora() });
+      if (!a) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Atendimento não encontrado.');
+      const concluido = concluirPelaDiarista(a, dep.relogio.agora(), horasParaContestar);
+      await dep.atendimentos.salvar(concluido);
+      await dep.notificador.enviar({ para: a.clienteId, canal: 'whatsapp',
+        texto: `A profissional marcou o atendimento como concluído. Confirme ou conte o que aconteceu em até ${horasParaContestar} horas.` });
       return concluido;
+    },
+
+    /** Atendimentos concluídos esperando o cliente confirmar ou contestar. */
+    async conclusoesParaConfirmar({ clienteId }) {
+      const lista = await comRepassesEmDia(dep, await dep.atendimentos.listarPorCliente(clienteId));
+      const agora = dep.relogio.agora();
+      const saida = [];
+      for (const a of lista.filter((x) => prazoDeContestacaoAberto(x, agora)).sort((x, y) => x.inicio - y.inicio)) {
+        saida.push({ id: a.id, inicio: a.inicio, horaInicio: a.horaInicio, horaFim: a.horaFim, concluidoEm: a.concluidoEm,
+          liberarEm: a.repasse.liberarEm, com: (await dep.diaristas.obter(a.diaristaId))?.nome ?? '?', tarefas: a.tarefas ?? [] });
+      }
+      return saida;
+    },
+
+    async confirmarConclusao({ atendimentoId, clienteId }) {
+      const a = await doCliente(atendimentoId, clienteId);
+      const confirmado = confirmarConclusao(a, dep.relogio.agora());
+      await pagarRepasse(dep, a);
+      await dep.atendimentos.salvar(confirmado);
+      return confirmado;
+    },
+
+    /** Contestação: vira ocorrência e segura o repasse até a operação decidir. */
+    async contestarConclusao({ atendimentoId, clienteId, tipo = 'qualidade', descricao }) {
+      if (!dep.ocorrencias) throw new RegraDeNegocioViolada('INDISPONIVEL', 'Contestação indisponível.');
+      const a = await doCliente(atendimentoId, clienteId);
+      const agora = dep.relogio.agora();
+      const contestado = contestarConclusao(a, agora);
+      if (tipo === 'falta_diarista') throw new RegraDeNegocioViolada('TIPO', 'A chegada da profissional foi confirmada com o seu código. Escolha outro motivo.');
+      const o = novaOcorrencia({ id: dep.ids.novo(), atendimentoId: a.id, tipo, gravidade: 'moderada', abertoPor: 'cliente', descricao, abertaEm: agora, contestacao: true });
+      await dep.ocorrencias.salvar(o);
+      await dep.atendimentos.salvar(contestado);
+      await dep.notificador.enviar({ para: 'operacao', canal: 'email', texto: `Conclusão contestada no atendimento ${a.id}: repasse em análise.` });
+      await dep.notificador.enviar({ para: a.diaristaId, canal: 'whatsapp', texto: 'O cliente relatou um problema no atendimento. O repasse fica em análise até a operação ouvir vocês.' });
+      return { atendimento: contestado, ocorrencia: o };
+    },
+
+    /** Libera os repasses com prazo vencido (também roda sozinha quando as telas consultam). */
+    async liberarRepassesVencidos() {
+      const antes = await dep.atendimentos.listarTodos();
+      const depois = await comRepassesEmDia(dep, antes);
+      return depois.filter((a, i) => a !== antes[i]).map((a) => a.id);
     },
 
     /** O que acontece se o cliente cancelar agora (sem cancelar). */
@@ -324,8 +386,9 @@ function montarCasos(dep) {
       for (const [id, ats] of porDiarista) {
         const d = await dep.diaristas.obter(id);
         const concluidos = ats.filter((a) => a.status === STATUS.CONCLUIDO).sort((x, y) => y.inicio - x.inicio);
-        const proximo = ats.filter((a) => [STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status) && a.inicio >= hoje)
+        const seguinte = ats.filter((a) => [STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status) && a.inicio >= hoje)
           .sort((x, y) => x.inicio - y.inicio)[0] ?? null;
+        const proximo = seguinte && { ...seguinte, local: await dep.locais.obter(seguinte.id), instrucoesEditaveis: instrucoesEditaveis(seguinte) };
         const pacote = await pacoteDisponivel(clienteId, id);
         const livres = await horariosLivres(d, 2);
         saida.push({ diarista: { id: d.id, nome: d.nome, iniciais: d.iniciais }, vezes: concluidos.length,
@@ -336,26 +399,62 @@ function montarCasos(dep) {
 
     async painelDiarista(diaristaId) {
       const d = await dep.diaristas.obter(diaristaId);
-      const ats = await dep.atendimentos.listarPorDiarista(diaristaId);
+      const ats = await comRepassesEmDia(dep, await dep.atendimentos.listarPorDiarista(diaristaId));
       const agora = dep.relogio.agora();
       const clientes = new Map();
       for (const a of ats) if (!clientes.has(a.clienteId)) clientes.set(a.clienteId, await dep.clientes.obter(a.clienteId));
-      const comNome = (a) => ({ ...a, clienteNome: clientes.get(a.clienteId)?.nome ?? 'Cliente' });
-      // o endereço só vai para a profissional depois que ela aceita o pedido
-      const comEndereco = (a) => ({ ...comNome(a), clienteEndereco: clientes.get(a.clienteId)?.endereco ?? '' });
-      const mesAtual = (a) => a.concluidoEm && a.concluidoEm.getMonth() === agora.getMonth() && a.concluidoEm.getFullYear() === agora.getFullYear();
-      const concluidos = ats.filter((a) => a.status === STATUS.CONCLUIDO).sort((x, y) => y.inicio - x.inicio);
+      const comNome = (a) => ({ ...a, clienteNome: clientes.get(a.clienteId)?.nome ?? 'Cliente', clienteRegiao: clientes.get(a.clienteId)?.regiao ?? '' });
+      // RF01: endereço e instruções só depois do aceite e até o fim do dia do atendimento
+      const locais = new Map();
+      for (const a of ats.filter((x) => localVisivelParaDiarista(x, agora))) locais.set(a.id, await dep.locais.obter(a.id));
+      const comLocal = (a) => ({ ...comNome(a), local: locais.get(a.id) ?? null });
+      const doMes = (data) => data && new Date(data).getMonth() === agora.getMonth() && new Date(data).getFullYear() === agora.getFullYear();
+      const liberados = ats.filter((a) => a.repasse?.status === REPASSE.LIBERADO)
+        .sort((x, y) => new Date(y.repasse.decididoEm) - new Date(x.repasse.decididoEm));
+      const noMes = liberados.filter((a) => doMes(a.repasse.decididoEm));
       return {
         diarista: d,
         pendentes: ats.filter((a) => a.status === STATUS.SOLICITADO).sort((x, y) => x.inicio - y.inicio).map(comNome),
-        agendados: ats.filter((a) => a.status === STATUS.ACEITO).sort((x, y) => x.inicio - y.inicio).map(comEndereco),
-        recebidoNoMes: concluidos.filter(mesAtual).reduce((s, a) => s + a.valores.recebeDiarista, 0),
-        atendimentosNoMes: concluidos.filter(mesAtual).length,
-        ultimosRecebimentos: concluidos.slice(0, 5).map(comNome),
+        agendados: ats.filter((a) => a.status === STATUS.ACEITO).sort((x, y) => x.inicio - y.inicio).map(comLocal),
+        emAndamento: ats.filter((a) => a.status === STATUS.EM_ANDAMENTO).sort((x, y) => x.inicio - y.inicio).map(comLocal),
+        recebidoNoMes: noMes.reduce((s, a) => s + a.valores.recebeDiarista, 0),
+        atendimentosNoMes: noMes.length,
+        ultimosRecebimentos: liberados.slice(0, 5).map(comNome),
+        aLiberar: ats.filter((a) => a.repasse?.status === REPASSE.AGUARDANDO).sort((x, y) => new Date(x.repasse.liberarEm) - new Date(y.repasse.liberarEm)).map(comNome),
+        emAnalise: ats.filter((a) => a.repasse?.status === REPASSE.CONTESTADO).map(comNome),
         simulacao: { avulso: precoDe(d, 'diaria', 'avulso'), pacote: precoDe(d, 'diaria', 'pacote') },
         piso: parametros.piso, janela: parametros.janela, comissao: { ...parametros.comissao },
         pacote: { quantidade: parametros.pacote.quantidade, descontoMaximo: parametros.pacote.descontoMaximo },
+        horasParaContestar,
       };
+    },
+
+    /** Preferências da profissional (RF02: se leva os produtos de limpeza quando o cliente pede). */
+    async atualizarPreferencias(diaristaId, { levaMateriais }) {
+      const d = await dep.diaristas.obter(diaristaId);
+      if (!d) throw new RegraDeNegocioViolada('NAO_ENCONTRADA', 'Profissional não encontrada.');
+      await dep.diaristas.salvar({ ...d, levaMateriais: Boolean(levaMateriais) });
+      return { levaMateriais: Boolean(levaMateriais) };
+    },
+
+    /** Dados do cliente para preencher os pedidos (endereço do cadastro e o imóvel do último pedido). */
+    async meusDados({ clienteId }) {
+      const c = await dep.clientes.obter(clienteId);
+      if (!c) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Cadastro não encontrado.');
+      return { id: c.id, nome: c.nome, endereco: c.endereco, regiao: c.regiao, celular: c.celular ?? null, imovel: c.imovel ?? null };
+    },
+
+    /** O cliente muda as instruções de acesso até o atendimento começar (RF01). */
+    async atualizarInstrucoesDeAcesso({ atendimentoId, clienteId, instrucoes }) {
+      const a = await doCliente(atendimentoId, clienteId);
+      if (!instrucoesEditaveis(a)) throw new RegraDeNegocioViolada('NAO_EDITAVEL', 'As instruções só podem mudar antes do atendimento começar.');
+      const atual = (await dep.locais.obter(a.id)) ?? novoLocal({ endereco: (await dep.clientes.obter(clienteId)).endereco });
+      const local = { ...atual, instrucoes: normalizarInstrucoes(instrucoes) };
+      await dep.locais.salvar(a.id, local);
+      if (a.status === STATUS.ACEITO) {
+        await dep.notificador.enviar({ para: a.diaristaId, canal: 'whatsapp', texto: 'O cliente atualizou as instruções de acesso de um atendimento.' });
+      }
+      return local;
     },
 
     async atualizarPrecos(diaristaId, precos) {

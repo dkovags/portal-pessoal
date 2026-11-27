@@ -11,3 +11,5 @@ export * from './acesso.js';
 export * from './avaliacao.js';
 export * from './documentos.js';
 export * from './pacote.js';
+export * from './local.js';
+export * from './escopo.js';

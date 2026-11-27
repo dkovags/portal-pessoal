@@ -5,6 +5,8 @@ import {
   candidaturaDeLinha, linhaDeCandidatura, ocorrenciaDeLinha, linhaDeOcorrencia, chaveDia,
 } from '../mapeamento-sql.js';
 
+const linhaDeCliente = (c) => ({ id: c.id, nome: c.nome, endereco: c.endereco, regiao: c.regiao, celular: c.celular ?? null, imovel: c.imovel ?? null });
+
 const TABELAS = new Set(['diaristas', 'atendimentos', 'pacotes', 'candidaturas', 'ocorrencias', 'disponibilidade', 'eventos', 'clientes', 'perfis']);
 const coluna = (c) => { if (!/^[a-z_]+$/.test(c)) throw new Error(`coluna inválida: ${c}`); return c; };
 
@@ -59,11 +61,23 @@ export function criarRepositoriosPostgres(db, relogio) {
     },
     clientes: {
       async obter(id) {
-        const [c] = await db.consultar('select id, nome, endereco, regiao, celular from diacerto.clientes where id = $1', [id]);
+        const [c] = await db.consultar('select id, nome, endereco, regiao, celular, imovel from diacerto.clientes where id = $1', [id]);
         return c ?? null;
       },
-      async listar() { return db.consultar('select id, nome, endereco, regiao, celular from diacerto.clientes order by nome'); },
-      async criar(c) { await gravar(db, 'clientes', { id: c.id, nome: c.nome, endereco: c.endereco, regiao: c.regiao, celular: c.celular ?? null }); },
+      async listar() { return db.consultar('select id, nome, endereco, regiao, celular, imovel from diacerto.clientes order by nome'); },
+      async criar(c) { await gravar(db, 'clientes', linhaDeCliente(c)); },
+      async salvar(c) { await gravar(db, 'clientes', linhaDeCliente(c)); },
+    },
+    locais: {
+      async obter(id) {
+        const [l] = await db.consultar('select endereco, instrucoes from diacerto.locais_atendimento where atendimento_id = $1', [id]);
+        return l ?? null;
+      },
+      async salvar(id, l) {
+        await db.executar(`insert into diacerto.locais_atendimento (atendimento_id, endereco, instrucoes) values ($1, $2, $3)
+          on conflict (atendimento_id) do update set endereco = excluded.endereco, instrucoes = excluded.instrucoes, atualizado_em = now()`,
+        [id, l.endereco, l.instrucoes ?? '']);
+      },
     },
     atendimentos: {
       async salvar(a) { await gravar(db, 'atendimentos', linhaDeAtendimento(a)); },

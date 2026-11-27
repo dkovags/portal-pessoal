@@ -51,7 +51,7 @@ test('cupom inválido é recusado', async () => {
   await assert.rejects(casos.simularReserva({ diaristaId: 'd2', clienteId: 'c1', codigoCupom: 'XPTO' }), { codigo: 'CUPOM_INVALIDO' });
 });
 
-test('fluxo completo: pedido, aceite com cobrança, chegada por código, conclusão com split', async () => {
+test('fluxo completo: pedido, aceite com cobrança, chegada por código, conclusão e confirmação com split', async () => {
   const { casos, infra } = montar();
   const quarta = proximo(3);
   const a = await casos.solicitarReserva({ clienteId: 'c2', diaristaId: 'd1', data: quarta, horaInicio: 8, duracao: 'diaria', modalidade: 'avulso', metodo: 'pix' });
@@ -65,8 +65,11 @@ test('fluxo completo: pedido, aceite com cobrança, chegada por código, conclus
 
   await casos.confirmarChegada({ atendimentoId: a.id, codigo: a.codigoConfirmacao });
   await casos.concluirAtendimento({ atendimentoId: a.id });
+  assert.ok(!infra.pagamento.registro.some((r) => r.tipo === 'captura'), 'o repasse espera o cliente confirmar');
+  await casos.confirmarConclusao({ atendimentoId: a.id, clienteId: 'c2' });
   const captura = infra.pagamento.registro.find((r) => r.tipo === 'captura');
   assert.equal(captura.repasseDiarista, reais(180));
+  assert.equal(captura.idempotencia, `repasse:${a.id}`);
 });
 
 test('recusa não gera cobrança', async () => {

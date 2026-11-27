@@ -29,6 +29,9 @@ export const STATUS_ATIVOS = [STATUS.SOLICITADO, STATUS.ACEITO, STATUS.EM_ANDAME
  * @property {'avulso'|'pacote'} modalidade @property {string} status
  * @property {ReturnType<import('./precificacao.js').calcularAtendimento>} valores
  * @property {string} observacoes @property {string} codigoConfirmacao
+ * @property {{tipo:string, quartos:number, banheiros:number, animais:string}|null} [imovel] RF02
+ * @property {string[]} [tarefas] RF02 @property {'cliente'|'profissional'} [materiais] RF02
+ * @property {{status:string, liberarEm:Date, decididoEm:Date|null, origem:string|null}|null} [repasse] RF03
  */
 
 /** @param {Omit<Atendimento,'status'>} dados @returns {Atendimento} */
@@ -73,4 +76,58 @@ export function remarcarAtendimento(a, novo, horasMinimas = 24) {
   if (novo.inicio.getTime() <= novo.agora.getTime()) throw new RegraDeNegocioViolada('DATA_PASSADA', 'Escolha uma data futura.');
   return { ...a, inicio: novo.inicio, horaInicio: novo.horaInicio, horaFim: novo.horaFim,
     status: STATUS.SOLICITADO, remarcacoes: (a.remarcacoes ?? 0) + 1 };
+}
+
+// RF03: a profissional marca a conclusão; o cliente confirma ou contesta dentro do prazo.
+// Sem contestação, o repasse é liberado. Contestado, espera a decisão da operação.
+export const REPASSE = Object.freeze({ AGUARDANDO: 'aguardando', LIBERADO: 'liberado', CONTESTADO: 'contestado', RETIDO: 'retido' });
+
+/** @param {Atendimento} a @param {Date} agora @param {number} horasParaContestar */
+export function concluirPelaDiarista(a, agora, horasParaContestar) {
+  const concluido = mudarStatus(a, STATUS.CONCLUIDO);
+  return { ...concluido, concluidoEm: agora,
+    repasse: { status: REPASSE.AGUARDANDO, liberarEm: new Date(agora.getTime() + horasParaContestar * 36e5), decididoEm: null, origem: null } };
+}
+
+/** O cliente ainda pode confirmar ou contestar? */
+export function prazoDeContestacaoAberto(a, agora) {
+  return a.status === STATUS.CONCLUIDO && a.repasse?.status === REPASSE.AGUARDANDO
+    && agora.getTime() < new Date(a.repasse.liberarEm).getTime();
+}
+
+function exigirPrazo(a, agora) {
+  if (a.status !== STATUS.CONCLUIDO || a.repasse?.status !== REPASSE.AGUARDANDO) {
+    throw new RegraDeNegocioViolada('SEM_CONFIRMACAO_PENDENTE', 'Este atendimento não está esperando a sua confirmação.');
+  }
+  if (!prazoDeContestacaoAberto(a, agora)) {
+    throw new RegraDeNegocioViolada('PRAZO_CONTESTACAO', 'O prazo para confirmar ou contestar terminou. Se algo deu errado, peça ajuda.');
+  }
+}
+
+export function confirmarConclusao(a, agora) {
+  exigirPrazo(a, agora);
+  return { ...a, repasse: { ...a.repasse, status: REPASSE.LIBERADO, decididoEm: agora, origem: 'cliente' } };
+}
+
+export function contestarConclusao(a, agora) {
+  exigirPrazo(a, agora);
+  return { ...a, repasse: { ...a.repasse, status: REPASSE.CONTESTADO } };
+}
+
+/** Prazo terminou sem contestação: o repasse pode ser liberado. */
+export function repasseVencido(a, agora) {
+  return a.status === STATUS.CONCLUIDO && a.repasse?.status === REPASSE.AGUARDANDO
+    && agora.getTime() >= new Date(a.repasse.liberarEm).getTime();
+}
+
+export function liberarPorPrazo(a, agora) {
+  if (!repasseVencido(a, agora)) throw new RegraDeNegocioViolada('REPASSE', 'O prazo deste repasse ainda não terminou.');
+  return { ...a, repasse: { ...a.repasse, status: REPASSE.LIBERADO, decididoEm: agora, origem: 'prazo' } };
+}
+
+/** Decisão da operação sobre um repasse contestado: liberar para a profissional ou reter (o cliente recebe de volta). */
+export function decidirRepasse(a, decisao, agora) {
+  if (a.repasse?.status !== REPASSE.CONTESTADO) throw new RegraDeNegocioViolada('REPASSE', 'Este repasse não está em contestação.');
+  if (!['liberar', 'reter'].includes(decisao)) throw new RegraDeNegocioViolada('REPASSE', 'Decida se o repasse é liberado ou retido.');
+  return { ...a, repasse: { ...a.repasse, status: decisao === 'liberar' ? REPASSE.LIBERADO : REPASSE.RETIDO, decididoEm: agora, origem: 'operacao' } };
 }

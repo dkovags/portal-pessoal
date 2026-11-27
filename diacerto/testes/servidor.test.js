@@ -41,8 +41,12 @@ test('postgres: busca, perfil e reserva com cupom gravada com valores coerentes'
   await casos.responderPedido({ atendimentoId: a.id, diaristaId: 'd3', aceitar: true });
   await casos.confirmarChegada({ atendimentoId: a.id, codigo: a.codigoConfirmacao });
   await casos.concluirAtendimento({ atendimentoId: a.id });
+  await casos.confirmarConclusao({ atendimentoId: a.id, clienteId: 'c2' });
   const eventos = await executorPsql(BANCO).consultar("select tipo from diacerto.eventos where tipo like 'pagamento%' order by id");
   assert.deepEqual(eventos.map((e) => e.tipo), ['pagamento.autorizacao', 'pagamento.captura']);
+  const [gravado] = await executorPsql(BANCO).consultar('select repasse_status, repasse_origem, tarefas, imovel from diacerto.atendimentos where id = $1', [a.id]);
+  assert.deepEqual([gravado.repasse_status, gravado.repasse_origem, gravado.imovel.tipo], ['liberado', 'cliente', 'apartamento']);
+  assert.ok(gravado.tarefas.length > 0);
 });
 
 test('postgres: agenda, preços, cadastro aprovado e ocorrência com reembolso', { skip: pular }, async () => {
@@ -229,4 +233,44 @@ test('postgres: parâmetros com vigência e histórico; só a operação altera'
   const sim = await casos.simularReserva({ diaristaId: 'd1', clienteId: 'c2' });
   assert.equal(sim.valores.comissao, Math.round(sim.valores.servico * 0.18));
   assert.equal(sim.politicaCancelamento.horasGratuitas, 48);
+});
+
+test('api: endereço só depois do aceite; escopo no pedido; conclusão contestada e decidida pela operação', { skip: pular }, async () => {
+  const livre = (await casos.obterPerfil('d1')).proximosHorarios.at(-1);
+  const pedido = { diaristaId: 'd1', data: livre.data, horaInicio: livre.inicio, duracao: 'diaria', modalidade: 'avulso', metodo: 'pix',
+    imovel: { tipo: 'apartamento', quartos: 2, banheiros: 1, animais: '' }, tarefas: ['Cozinha'], materiais: 'profissional', instrucoes: 'Interfone 210.' };
+  const a = (await corpo(await pedir('/casos/solicitarReserva', { token: 'ana@x.com', args: [pedido] }))).resultado;
+  assert.deepEqual([a.tarefas, a.materiais], [['Cozinha'], 'profissional']);
+  const [local] = await executorPsql(BANCO).consultar('select endereco, instrucoes from diacerto.locais_atendimento where atendimento_id = $1', [a.id]);
+  assert.equal(local.instrucoes, 'Interfone 210.');
+  const painel = async () => (await corpo(await pedir('/casos/painelDiarista', { token: 'marlene@x.com', args: [] }))).resultado;
+  const antes = await painel();
+  assert.ok(antes.pendentes.some((x) => x.id === a.id && x.tarefas[0] === 'Cozinha'));
+  assert.ok(!JSON.stringify(antes).includes('Interfone 210'), 'nada do local antes do aceite');
+  const semTermos = await pedir('/casos/responderPedido', { token: 'marlene@x.com', args: [{ atendimentoId: a.id, aceitar: true }] });
+  assert.equal(semTermos.status, 403, 'a profissional aceita os termos antes de aceitar pedidos');
+  const { DOCUMENTOS_LEGAIS } = await import('../src/dominio/index.js');
+  await pedir('/casos/registrarAceites', { token: 'marlene@x.com', args: [{ aceites: {
+    'termos-profissional': DOCUMENTOS_LEGAIS['termos-profissional'].versao, privacidade: DOCUMENTOS_LEGAIS.privacidade.versao } }] });
+  assert.equal((await pedir('/casos/responderPedido', { token: 'marlene@x.com', args: [{ atendimentoId: a.id, aceitar: true }] })).status, 200);
+  const depois = await painel();
+  assert.equal(depois.agendados.find((x) => x.id === a.id).local.instrucoes, 'Interfone 210.');
+
+  await pedir('/casos/confirmarChegada', { token: 'marlene@x.com', args: [{ atendimentoId: a.id, codigo: a.codigoConfirmacao }] });
+  const concluido = await corpo(await pedir('/casos/concluirAtendimento', { token: 'marlene@x.com', args: [{ atendimentoId: a.id }] }));
+  assert.equal(concluido.resultado.repasse.status, 'aguardando');
+  const pend = (await corpo(await pedir('/casos/conclusoesParaConfirmar', { token: 'ana@x.com', args: [{ clienteId: 'c2' }] }))).resultado;
+  assert.ok(pend.some((x) => x.id === a.id));
+  const contestou = await corpo(await pedir('/casos/contestarConclusao', { token: 'ana@x.com', args: [{ atendimentoId: a.id, tipo: 'qualidade', descricao: 'A cozinha ficou pela metade.' }] }));
+  assert.equal(contestou.status, 200);
+  const [oc] = await executorPsql(BANCO).consultar('select id, contestacao from diacerto.ocorrencias where atendimento_id = $1', [a.id]);
+  assert.equal(oc.contestacao, true);
+  const semDecisao = await corpo(await pedir('/casos/resolverOcorrencia', { token: 'op@x.com', args: [{ ocorrenciaId: oc.id, resolucao: 'Ouvidas as duas partes por telefone.' }] }));
+  assert.equal(semDecisao.erro.codigo, 'REPASSE');
+  const decidido = await corpo(await pedir('/casos/resolverOcorrencia', { token: 'op@x.com', args: [{ ocorrenciaId: oc.id, resolucao: 'Ouvidas as duas partes; serviço feito.', repasse: 'liberar' }] }));
+  assert.equal(decidido.resultado.repasse, 'liberado');
+  const [rep] = await executorPsql(BANCO).consultar('select repasse_status, repasse_origem from diacerto.atendimentos where id = $1', [a.id]);
+  assert.deepEqual([rep.repasse_status, rep.repasse_origem], ['liberado', 'operacao']);
+  const [cap] = await executorPsql(BANCO).consultar("select dados from diacerto.eventos where tipo = 'pagamento.captura' order by id desc limit 1");
+  assert.equal(cap.dados.idempotencia, `repasse:${a.id}`);
 });

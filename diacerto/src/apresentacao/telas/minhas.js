@@ -1,22 +1,50 @@
 import { html } from '../html.js';
 import { avatar, CORES, icone } from '../componentes.js';
-import { dataLonga, dataCurta, horario, moeda } from '../formatos.js';
+import { dataLonga, dataCurta, horario, moeda, quando } from '../formatos.js';
+import { TIPOS_OCORRENCIA, LIMITE_INSTRUCOES } from '../../dominio/index.js';
+
+const MOTIVOS_CONTESTACAO = ['qualidade', 'dano', 'atraso', 'seguranca', 'outro'];
 import { erro, formAvaliacao, ligarAvaliacoes } from '../componentes.js';
 
 export async function telaMinhas(ctx) {
   const lista = await ctx.casos.minhasDiaristas(ctx.sessao.clienteId);
-  const e = ctx.estado('minhas', { cancelar: null, previa: null, erro: '', ok: '', notaBaixa: null });
+  const e = ctx.estado('minhas', { cancelar: null, previa: null, erro: '', ok: '', notaBaixa: null, contestar: null });
   const pendentes = await ctx.casos.pendentesDeAvaliacao({ clienteId: ctx.sessao.clienteId });
+  const confirmar = await ctx.casos.conclusoesParaConfirmar({ clienteId: ctx.sessao.clienteId });
   const proximo = lista.map((x) => x.proximo && { ...x.proximo, nome: x.diarista.nome, pacote: x.pacote }).filter(Boolean)
     .sort((a, b) => a.inicio - b.inicio)[0];
   return { html: html`
     <header class="topo entre"><h1 class="titulo">Minhas diaristas</h1><span class="linha"><a class="link-forte" href="#/pacotes">Pacotes</a><a class="link-forte" href="#/">Início</a></span></header>
+    ${confirmar.map((c) => html`
+      <section class="cartao pilha-curta borda-forte" aria-label="Confirmar atendimento">
+        <strong>${c.com} marcou o atendimento de ${dataCurta(c.inicio)} como concluído</strong>
+        <span class="mudo pequeno">Está tudo certo? Confirme ou conte o que aconteceu até ${quando(c.liberarEm)}. Sem resposta, o pagamento dela é liberado.</span>
+        ${e.contestar === c.id ? html`
+          <form class="pilha-curta" data-contestar="${c.id}">
+            <label>O que aconteceu<select name="tipo">${MOTIVOS_CONTESTACAO.map((t) => html`<option value="${t}">${TIPOS_OCORRENCIA[t]}</option>`)}</select></label>
+            <label>Conte com detalhes<textarea name="descricao" maxlength="1000" required></textarea></label>
+            <span class="mudo mini">O pagamento da profissional fica em análise até a operação ouvir vocês dois.</span>
+            <div class="grade2"><button type="button" class="btn contorno-neutro" data-voltar-contestacao>Voltar</button><button class="btn">Enviar</button></div>
+          </form>` : html`
+          <div class="grade2">
+            <button type="button" class="btn contorno-neutro" data-abrir-contestacao="${c.id}">Algo deu errado</button>
+            <button type="button" class="btn" data-confirmar-conclusao="${c.id}">Está tudo certo</button>
+          </div>`}
+      </section>`)}
     ${proximo ? html`
       <section class="cartao escuro pilha-curta">
         <span class="mini claro">Próximo atendimento · ${proximo.status === 'solicitado' ? 'aguardando aceite' : 'confirmado'}</span>
         <strong>${proximo.nome} · ${dataLonga(proximo.inicio)}</strong>
         <span class="pequeno claro">${horario(proximo.horaInicio, proximo.horaFim)}${proximo.pacoteId ? ' · pelo pacote' : ''}</span>
         <span class="pequeno claro">Código de confirmação: <strong>${proximo.codigoConfirmacao}</strong></span>
+        ${proximo.local ? html`
+          <span class="pequeno claro">${proximo.local.endereco}${proximo.local.instrucoes ? ` · Acesso: ${proximo.local.instrucoes}` : ''}</span>
+          ${proximo.instrucoesEditaveis ? html`<details class="pilha-curta"><summary class="mini claro">${proximo.local.instrucoes ? 'Mudar as instruções de acesso' : 'Incluir instruções de acesso'}</summary>
+            <form class="pilha-curta" data-instrucoes="${proximo.id}">
+              <textarea name="instrucoes" maxlength="${LIMITE_INSTRUCOES}" placeholder="Ex.: a chave fica na portaria.">${proximo.local.instrucoes}</textarea>
+              <span class="mini claro">Só a profissional que aceitou vê, e só até o fim do dia do atendimento.</span>
+              <button class="btn claro-btn">Salvar instruções</button>
+            </form></details>` : ''}` : ''}
         ${e.cancelar === proximo.id && e.previa ? html`
           <div class="cartao pilha-curta" role="alertdialog" aria-label="Confirmar cancelamento">
             <strong class="pequeno tinta">${e.previa.gratuito ? 'Cancelamento sem custo' : 'Cancelamento fora do prazo gratuito'}</strong>
@@ -72,6 +100,28 @@ export async function telaMinhas(ctx) {
       e.ok = 'Obrigado pela avaliação.'; e.notaBaixa = p.nota <= 2 ? p.atendimentoId : null;
     }));
     raiz.querySelector('[data-manter]')?.addEventListener('click', () => { e.cancelar = null; e.previa = null; ctx.redesenhar(); });
+    raiz.querySelectorAll('[data-confirmar-conclusao]').forEach((b) => b.addEventListener('click', () => agir(async () => {
+      await ctx.casos.confirmarConclusao({ atendimentoId: b.dataset.confirmarConclusao, clienteId: ctx.sessao.clienteId });
+      e.ok = 'Obrigado! O pagamento da profissional foi liberado.';
+    })));
+    raiz.querySelectorAll('[data-abrir-contestacao]').forEach((b) => b.addEventListener('click', () => { e.contestar = b.dataset.abrirContestacao; ctx.redesenhar(); }));
+    raiz.querySelector('[data-voltar-contestacao]')?.addEventListener('click', () => { e.contestar = null; ctx.redesenhar(); });
+    raiz.querySelector('[data-contestar]')?.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.currentTarget);
+      const atendimentoId = ev.currentTarget.dataset.contestar;
+      agir(async () => {
+        await ctx.casos.contestarConclusao({ atendimentoId, clienteId: ctx.sessao.clienteId, tipo: String(f.get('tipo')), descricao: String(f.get('descricao') ?? '') });
+        e.contestar = null;
+        e.ok = 'Recebemos o seu relato. A operação vai ouvir as duas partes e responder pelo WhatsApp.';
+      });
+    });
+    raiz.querySelector('[data-instrucoes]')?.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const atendimentoId = ev.currentTarget.dataset.instrucoes;
+      const instrucoes = String(new FormData(ev.currentTarget).get('instrucoes') ?? '');
+      agir(async () => { await ctx.casos.atualizarInstrucoesDeAcesso({ atendimentoId, clienteId: ctx.sessao.clienteId, instrucoes }); e.ok = 'Instruções de acesso salvas.'; });
+    });
     raiz.querySelector('[data-confirmar-cancelamento]')?.addEventListener('click', (ev) => agir(async () => {
       await ctx.casos.cancelarPeloCliente({ atendimentoId: ev.currentTarget.dataset.confirmarCancelamento, clienteId: ctx.sessao.clienteId });
       e.cancelar = null; e.previa = null; e.ok = 'Reserva cancelada.';
