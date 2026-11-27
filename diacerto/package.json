@@ -1,0 +1,9 @@
+{
+  "name": "diacerto",
+  "private": true,
+  "type": "module",
+  "description": "DiaCerto: protótipo do piloto em camadas (domínio, aplicação, infraestrutura, apresentação).",
+  "scripts": {
+    "test": "node --test testes/*.test.js"
+  }
+}

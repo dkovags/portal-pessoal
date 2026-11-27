@@ -10,6 +10,12 @@ os links e arquivos apontarem para o kovags.com.
 No kovags.com, o `.htaccess` libera CORS para este endereço e redireciona `kovags.com/pessoal/` para cá
 (o parâmetro `carregar=1` evita o redirecionamento quando a página é buscada por esta porta).
 
+## DiaCerto (`/diacerto/`)
+
+Protótipo da plataforma de contratação de diaristas, em camadas (domínio, aplicação, infraestrutura,
+apresentação), publicado em `pessoal.kovags.com/diacerto/` direto deste repositório. Roda com dados fictícios em
+memória. Detalhes e testes em [`diacerto/README.md`](diacerto/README.md).
+
 ## DizTudo (`/diztudo/`)
 
 Planejador de estudos para concursos, publicado em `pessoal.kovags.com/diztudo/` direto deste repositório
