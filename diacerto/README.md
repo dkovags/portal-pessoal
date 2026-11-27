@@ -5,12 +5,12 @@ Plataforma de contratação de diaristas, com piloto no Plano Piloto (Brasília)
 
 Há dois modos:
 
-- **Padrão (`/diacerto/`):** login Google e dados gravados no Postgres do Neon, no schema `diacerto` do banco
-  `neondb` do projeto Neon `diztudo` (provisório). Só entram os e-mails da tabela `diacerto.autorizados`.
-- **Demonstração (`/diacerto/?demo`):** sem login, com dados fictícios em memória. Recarregar volta ao início.
+- **Padrão (`/diacerto/`):** login Google e todas as operações feitas pelo servidor (API do DiaCerto no Neon
+  Functions, projeto Neon `diacerto`, AWS us-east-1). O navegador não acessa o banco nem calcula cobranças.
+- **Demonstração (`/diacerto/?demo`):** sem login, com dados fictícios em memória no próprio navegador.
 
-Em ambos os modos os dados de clientes e diaristas são fictícios e nenhum pagamento real é feito: autorizações,
-capturas, estornos e notificações ficam registrados na tabela `diacerto.eventos`.
+Os dados de clientes e diaristas ainda são fictícios e nenhum pagamento real é feito: autorizações, capturas,
+estornos e avisos ficam registrados na tabela `diacerto.eventos`.
 
 ## Arquitetura em camadas
 
@@ -20,8 +20,11 @@ src/
   aplicacao/        casos de uso e portas (contratos que a infraestrutura implementa)
   infraestrutura/   adaptadores das portas
     memoria/        repositórios em memória e dados fictícios (modo demonstração e testes)
-    neon/           repositórios sobre a Data API do Neon, login Google, pagamento e avisos registrados
-  apresentacao/     telas, roteador e raiz de composição (app.js)
+    postgres/       repositórios em SQL, usados pelo servidor (SQL sobre HTTP do Neon, sem dependências)
+    api/            no navegador: login Google e os casos de uso chamados pela API
+  apresentacao/     telas, roteador e raiz de composição do navegador (app.js)
+    api/            servidor HTTP: login (JWT), permissões por papel e raiz de composição do servidor
+servidor/           inicializador da função e lista de arquivos que ela carrega
 ```
 
 Regra de dependência: cada camada só importa as camadas mais internas.
@@ -36,17 +39,26 @@ Regra de dependência: cada camada só importa as camadas mais internas.
 O teste `testes/camadas.test.js` verifica isso em cada arquivo. Ele também impede que domínio e aplicação
 usem navegador ou rede.
 
-Memória e Neon implementam as mesmas portas de `aplicacao/portas.js`; a raiz de composição em
-`apresentacao/app.js` escolhe uma delas. Domínio, casos de uso e telas não mudam de um modo para o outro.
+O navegador e o servidor rodam as mesmas camadas de domínio e aplicação. No navegador, a raiz de composição
+(`apresentacao/app.js`) usa os casos de uso remotos (`infraestrutura/api`) ou, no `?demo`, os em memória. No servidor,
+a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 
-## Banco (provisório)
+## Servidor (Neon Functions)
 
-- `banco/001_esquema.sql`: tabelas, restrições (pisos, janela, coerência dos valores), permissões e RLS.
-- `banco/002_carga_ficticia.sql`: carga inicial, gerada por `node banco/gerar-carga.js` (datas relativas ao dia da geração).
-- `banco/003_candidaturas.sql`: cadastro assistido de diaristas (só resultado e data da verificação, sem cópias de documentos).
-- `banco/004_ocorrencias.sql`: ocorrências e reembolsos, com a Política de Reembolso também como restrição do banco.
-- Para dar acesso a outra pessoa: `insert into diacerto.autorizados (email) values ('pessoa@gmail.com');`
-- A Data API do projeto expõe os schemas `public` (DizTudo) e `diacerto`, com CORS só para `https://pessoal.kovags.com`.
+- Função `api` no projeto Neon `diacerto` (us-east-1): `GET /saude`, `GET /eu` e `POST /casos/<nome>`.
+- Login: o navegador envia o JWT do Neon Auth; o servidor verifica a assinatura (Ed25519) com WebCrypto.
+- Perfis (`diacerto.perfis`): `operacao` faz tudo; `cliente` e `diarista` só agem em nome próprio, e o servidor
+  substitui o cliente ou a diarista informados pelo navegador pelos do perfil logado. Só o pedido de contato
+  (`#/trabalhe`) é aberto sem login.
+- O inicializador (`servidor/inicializador/index.mjs`) baixa do GitHub os arquivos de `servidor/arquivos.json`,
+  fixados num commit pela variável `CODIGO_VERSAO`. Atualizar o servidor é trocar essa variável na função.
+- Dar acesso a alguém: `insert into diacerto.perfis (email, papel, cliente_id, diarista_id) values (...)`.
+
+## Banco
+
+- Projeto atual: `banco/projeto-diacerto/001_esquema.sql` (esquema) e `002_carga_ficticia.sql`
+  (gerado por `node banco/gerar-carga.js`).
+- `banco/001` a `004`: esquema provisório usado antes no projeto Neon `diztudo`; ficou lá sem uso.
 
 ## Cadastro assistido de diaristas
 
@@ -92,13 +104,17 @@ cd diacerto
 npm test
 ```
 
-Os adaptadores Neon são testados contra uma imitação da Data API (`testes/banco-falso.js`), sem rede.
+Os repositórios Postgres e a API são testados contra um Postgres local, quando há um:
+
+```
+DIACERTO_PG="host=127.0.0.1 port=5432 user=postgres" npm test
+```
+
+Sem `DIACERTO_PG`, esses testes são pulados.
 
 ## Pendências para sair do protótipo
 
 - Provedor de pagamento com split e WhatsApp reais.
-- As regras de cobrança, cancelamento e repasse rodam hoje no navegador. O banco barra valores incoerentes
-  (restrições `check`), mas a versão real precisa dessas regras no servidor e de papéis separados para
-  cliente, diarista e operação, em vez do acesso compartilhado de hoje.
-- Sair do projeto `diztudo` para um projeto Neon próprio.
+- Tela para a operação cadastrar perfis de clientes e diaristas (hoje é por SQL).
+- Operações com várias gravações (aprovar cadastro) ainda não são atômicas.
 - Este repositório é público: dados reais de clientes e diaristas nunca devem entrar aqui.

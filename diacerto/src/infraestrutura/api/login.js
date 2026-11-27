@@ -2,7 +2,7 @@
 
 export const CONFIG_SERVIDOR = Object.freeze({
   banco: 'https://ep-noisy-band-bcue15da.c-16.us-east-1.aws.neon.tech/neondb', // projeto Neon "diacerto" (us-east-1)
-  api: '__URL_DA_API__',
+  api: 'https://br-silent-meadow-bc96vaxe-api.compute.c-16.us-east-1.aws.neon.tech', // função "api" (Neon Functions)
 });
 
 export async function conectarLogin(config = CONFIG_SERVIDOR) {

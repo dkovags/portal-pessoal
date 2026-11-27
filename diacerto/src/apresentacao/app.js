@@ -71,6 +71,7 @@ export async function iniciar(raiz) {
 }
 
 function montarApp(raiz, casos, info) {
+  if (!location.hash && info.papel === 'diarista') location.hash = '#/diarista';
   const estados = new Map();
   let rotaAtual = lerRota();
 
