@@ -1,0 +1,28 @@
+{
+  "entrada": "src/apresentacao/api/funcao.js",
+  "arquivos": [
+    "src/aplicacao/cadastro.js",
+    "src/aplicacao/casos-de-uso.js",
+    "src/aplicacao/datas.js",
+    "src/aplicacao/operacao.js",
+    "src/aplicacao/portas.js",
+    "src/apresentacao/api/funcao.js",
+    "src/apresentacao/api/jwt.js",
+    "src/apresentacao/api/permissoes.js",
+    "src/apresentacao/api/servidor.js",
+    "src/dominio/atendimento.js",
+    "src/dominio/candidatura.js",
+    "src/dominio/dinheiro.js",
+    "src/dominio/erros.js",
+    "src/dominio/index.js",
+    "src/dominio/indicadores.js",
+    "src/dominio/ocorrencia.js",
+    "src/dominio/parametros.js",
+    "src/dominio/precificacao.js",
+    "src/dominio/regras.js",
+    "src/infraestrutura/mapeamento-sql.js",
+    "src/infraestrutura/postgres/index.js",
+    "src/infraestrutura/postgres/repositorios.js",
+    "src/infraestrutura/postgres/sql-http.js"
+  ]
+}

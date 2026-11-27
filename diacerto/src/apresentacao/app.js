@@ -1,7 +1,8 @@
 // Raiz de composição: único ponto que conhece a implementação concreta da infraestrutura.
 import { criarCasosDeUso } from '../aplicacao/casos-de-uso.js';
 import { criarInfraestruturaEmMemoria } from '../infraestrutura/memoria/index.js';
-import { conectarNeon, criarInfraestruturaNeon } from '../infraestrutura/neon/index.js';
+import { conectarLogin, CONFIG_SERVIDOR } from '../infraestrutura/api/login.js';
+import { clienteApi } from '../infraestrutura/api/casos-remotos.js';
 import { telaInicio } from './telas/inicio.js';
 import { telaBusca } from './telas/busca.js';
 import { telaPerfil } from './telas/perfil.js';
@@ -39,43 +40,45 @@ function portao(raiz, mensagem, acoes = []) {
   for (const a of acoes) raiz.querySelector(`[data-acao="${a.id}"]`).addEventListener('click', a.fazer);
 }
 
-/** Escolhe a infraestrutura: Neon com login Google (padrão) ou memória (?demo). */
+/** Escolhe a origem dos casos de uso: API do servidor com login Google (padrão) ou memória (?demo). */
 export async function iniciar(raiz) {
   if (new URLSearchParams(location.search).has('demo')) {
-    return montarApp(raiz, criarInfraestruturaEmMemoria(), { modo: 'memoria' });
+    const infra = criarInfraestruturaEmMemoria();
+    return montarApp(raiz, criarCasosDeUso(infra), { modo: 'memoria', papel: 'operacao', agora: () => infra.relogio.agora() });
   }
-  portao(raiz, 'Conectando ao banco…');
-  let conexao;
-  try { conexao = await conectarNeon(); } catch (falha) {
+  portao(raiz, 'Conectando…');
+  let login;
+  try { login = await conectarLogin(); } catch (falha) {
     console.error(falha);
-    return portao(raiz, 'Não foi possível carregar o login do Neon. Recarregue a página.');
+    return portao(raiz, 'Não foi possível carregar o login. Recarregue a página.');
   }
-  const sessao = await conexao.sessao();
+  const sessao = await login.sessao();
   if (!sessao) {
-    return portao(raiz, 'Acesso restrito. Entre com a sua conta Google.', [{ id: 'entrar', rotulo: 'Entrar com Google', fazer: async () => {
-      try { await conexao.entrar(); } catch { portao(raiz, 'Não foi possível iniciar o login. Tente de novo.'); }
+    return portao(raiz, 'Entre com a sua conta Google para continuar.', [{ id: 'entrar', rotulo: 'Entrar com Google', fazer: async () => {
+      try { await login.entrar(); } catch { portao(raiz, 'Não foi possível iniciar o login. Tente de novo.'); }
     } }]);
   }
-  const email = String(sessao.user?.email ?? '').toLowerCase();
-  const sair = async () => { await conexao.sair().catch(() => {}); location.replace(location.pathname); };
-  const infra = criarInfraestruturaNeon(conexao.db);
-  try {
-    if (!(await infra.clientes.obter('c1'))) throw new Error('sem acesso');
-  } catch {
-    return portao(raiz, `A conta ${email} não tem acesso ao DiaCerto.`, [{ id: 'sair', rotulo: 'Sair', secundaria: true, fazer: sair }]);
+  const sair = async () => { await login.sair().catch(() => {}); location.replace(location.pathname); };
+  const api = clienteApi({ url: CONFIG_SERVIDOR.api, token: login.token });
+  let eu;
+  try { eu = await api.eu(); } catch (falha) {
+    return portao(raiz, falha.message, [{ id: 'sair', rotulo: 'Sair', secundaria: true, fazer: sair }]);
   }
-  return montarApp(raiz, infra, { modo: 'neon', email, sair });
+  if (!eu.papel) {
+    return portao(raiz, `A conta ${eu.email} ainda não tem acesso ao DiaCerto.`, [{ id: 'sair', rotulo: 'Sair', secundaria: true, fazer: sair }]);
+  }
+  return montarApp(raiz, api.casos, { modo: 'servidor', email: eu.email, papel: eu.papel, clienteId: eu.clienteId, diaristaId: eu.diaristaId, sair, agora: () => new Date() });
 }
 
-function montarApp(raiz, infra, info) {
-  const casos = criarCasosDeUso(infra);
+function montarApp(raiz, casos, info) {
   const estados = new Map();
   let rotaAtual = lerRota();
 
   const ctx = {
     casos,
-    sessao: { clienteId: 'c1', diaristaId: 'd1' }, // protótipo: Ana (cliente) e Marlene (diarista)
-    agora: () => infra.relogio.agora(),
+    // operação vê o protótipo como Ana (cliente) e Marlene (diarista); os demais, como eles mesmos
+    sessao: { clienteId: info.clienteId ?? 'c1', diaristaId: info.diaristaId ?? 'd1', papel: info.papel },
+    agora: info.agora,
     ir: (hash) => { location.hash = hash; },
     estado: (chave, inicial) => { if (!estados.has(chave)) estados.set(chave, { ...inicial }); return estados.get(chave); },
     redesenhar: () => desenhar(false),
@@ -86,10 +89,10 @@ function montarApp(raiz, infra, info) {
     try {
       const r = await tela(ctx, rotaAtual);
       raiz.innerHTML = String(html`
-        <div class="faixa-prototipo" role="note">${info.modo === 'neon'
-          ? html`Protótipo · dados de teste gravados no banco · ${info.email} · <button type="button" class="link-claro" data-sair>Sair</button>`
-          : 'Demonstração com dados fictícios, só neste navegador'} ·
-          <a href="#/">Ver como cliente</a> · <a href="#/diarista">Ver como diarista</a> · <a href="#/operacao">Ver como operação</a></div>
+        <div class="faixa-prototipo" role="note">${info.modo === 'servidor'
+          ? html`Protótipo · ${info.email} · <button type="button" class="link-claro" data-sair>Sair</button>`
+          : 'Demonstração com dados fictícios, só neste navegador'}${info.papel === 'operacao' ? html` ·
+          <a href="#/">Ver como cliente</a> · <a href="#/diarista">Ver como diarista</a> · <a href="#/operacao">Ver como operação</a>` : ''}</div>
         <main class="tela">${r.html}</main>`);
       raiz.querySelector('[data-sair]')?.addEventListener('click', info.sair);
       r.ligar?.(raiz);
@@ -110,5 +113,5 @@ function montarApp(raiz, infra, info) {
     desenhar();
   });
   desenhar();
-  return { infra, casos };
+  return { casos };
 }
