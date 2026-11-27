@@ -9,11 +9,15 @@ import { telaReserva } from './telas/reserva.js';
 import { telaMinhas } from './telas/minhas.js';
 import { telaDiarista } from './telas/diarista.js';
 import { telaAjuda } from './telas/ajuda.js';
+import { telaTrabalhe } from './telas/trabalhe.js';
+import { telaOperacao } from './telas/operacao.js';
+import { telaCadastro } from './telas/cadastro.js';
 import { html } from './html.js';
 
 const ROTAS = {
   '': telaInicio, busca: telaBusca, profissional: telaPerfil, reserva: telaReserva,
-  minhas: telaMinhas, diarista: telaDiarista, ajuda: telaAjuda,
+  minhas: telaMinhas, diarista: telaDiarista, ajuda: telaAjuda, trabalhe: telaTrabalhe,
+  operacao: (ctx, rota) => (rota.params[0] === 'cadastro' ? telaCadastro(ctx, rota) : telaOperacao(ctx, rota)),
 };
 
 function lerRota() {
@@ -84,7 +88,7 @@ function montarApp(raiz, infra, info) {
         <div class="faixa-prototipo" role="note">${info.modo === 'neon'
           ? html`Protótipo · dados de teste gravados no banco · ${info.email} · <button type="button" class="link-claro" data-sair>Sair</button>`
           : 'Demonstração com dados fictícios, só neste navegador'} ·
-          <a href="#/">Ver como cliente</a> · <a href="#/diarista">Ver como diarista</a></div>
+          <a href="#/">Ver como cliente</a> · <a href="#/diarista">Ver como diarista</a> · <a href="#/operacao">Ver como operação</a></div>
         <main class="tela">${r.html}</main>`);
       raiz.querySelector('[data-sair]')?.addEventListener('click', info.sair);
       r.ligar?.(raiz);

@@ -1,6 +1,6 @@
 // Dados fictícios do protótipo, gerados em relação à data de hoje.
 // Nomes, avaliações e endereços são inventados.
-import { reais, calcularAtendimento, STATUS } from '../../dominio/index.js';
+import { reais, calcularAtendimento, STATUS, novaCandidatura } from '../../dominio/index.js';
 
 const chave = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const somarDias = (base, n) => { const d = new Date(base.getFullYear(), base.getMonth(), base.getDate()); d.setDate(d.getDate() + n); return d; };
@@ -86,7 +86,17 @@ export function gerarDadosFicticios(hoje) {
   const validade = new Date(hoje); validade.setMonth(validade.getMonth() + 3);
   const pacotes = [{ id: 'p1', clienteId: 'c1', diaristaId: 'd1', total: 4, usados: 1, validade }];
 
-  return { diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) } };
+  const contato = { ...novaCandidatura({ id: 'k1', nome: 'Cláudia Ferreira', celular: '61900000001', regiao: 'Sudoeste' }), criadaEm: somarDias(hoje, -1) };
+  const emCadastro = {
+    ...novaCandidatura({ id: 'k2', nome: 'Benedita Souza Lima', celular: '61900000002', regiao: 'Asa Sul' }),
+    status: 'em_cadastro', criadaEm: somarDias(hoje, -3), anosExperiencia: 15,
+    regioes: ['Asa Sul', 'Sudoeste'], tarefas: ['Limpeza geral', 'Cozinha', 'Passar roupas leves'], naoFaz: 'Áreas em altura.',
+    precos: { diaria: reais(190), meiaDiaria: reais(105), transporte: reais(18), descontoPacote: 0.1 },
+    agenda: { diasDaSemana: [1, 3, 5], inicio: 8, fim: 17 },
+  };
+  for (const item of ['identidade', 'certidao_pcdf', 'certidao_pf', 'referencia_1']) emCadastro.verificacao[item] = { resultado: 'ok', data: chave(somarDias(hoje, -2)) };
+
+  return { diaristas, clientes, atendimentos, pacotes, cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
 }
 
 function proximoDiaUtil(hoje, minimo) {

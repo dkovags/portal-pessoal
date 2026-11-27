@@ -19,6 +19,25 @@
  * @property {(filtro?:{regiao?:string}) => Promise<Diarista[]>} listar
  * @property {(id:string) => Promise<Diarista|null>} obter
  * @property {(d:Diarista) => Promise<void>} salvar
+ * @property {(d:Diarista) => Promise<void>} criar
+ */
+
+/**
+ * @typedef {object} Candidatura
+ * @property {string} id @property {string} nome @property {string} celular
+ * @property {'contato'|'em_cadastro'|'aprovada'|'reprovada'} status
+ * @property {string[]} regioes @property {string[]} tarefas @property {string} naoFaz @property {number} anosExperiencia
+ * @property {{diaria:number, meiaDiaria:number, transporte:number, descontoPacote:number}} precos
+ * @property {{diasDaSemana:number[], inicio:number, fim:number}} agenda
+ * @property {Record<string,{resultado:string, data:string|null}>} verificacao só resultado e data, nunca cópias
+ * @property {string|null} aceiteConduta @property {string} motivoReprovacao @property {string|null} diaristaId
+ * @property {Date|string} [criadaEm]
+ */
+/**
+ * @typedef {object} RepositorioCandidaturas
+ * @property {() => Promise<Candidatura[]>} listar
+ * @property {(id:string) => Promise<Candidatura|null>} obter
+ * @property {(c:Candidatura) => Promise<void>} salvar
  */
 
 /** @typedef {{obter:(id:string)=>Promise<Cliente|null>}} RepositorioClientes */

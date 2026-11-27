@@ -4,6 +4,7 @@ import {
   STATUS, STATUS_ATIVOS, RegraDeNegocioViolada, PARAMETROS_PADRAO,
 } from '../dominio/index.js';
 import { chaveDia, deChave } from './datas.js';
+import { criarCasosDeCadastro } from './cadastro.js';
 
 const HORAS = { diaria: 8, meiaDiaria: 4 };
 
@@ -61,6 +62,7 @@ export function criarCasosDeUso(dep) {
   }
 
   const casos = {
+    ...(dep.candidaturas ? criarCasosDeCadastro(dep) : {}),
     /** @param {{regiao?:string, data?:string, duracao?:'diaria'|'meiaDiaria'|'todas'}} f */
     async buscarProfissionais(f = {}) {
       const lista = await dep.diaristas.listar({ regiao: f.regiao });

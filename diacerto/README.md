@@ -43,8 +43,18 @@ Memória e Neon implementam as mesmas portas de `aplicacao/portas.js`; a raiz de
 
 - `banco/001_esquema.sql`: tabelas, restrições (pisos, janela, coerência dos valores), permissões e RLS.
 - `banco/002_carga_ficticia.sql`: carga inicial, gerada por `node banco/gerar-carga.js` (datas relativas ao dia da geração).
+- `banco/003_candidaturas.sql`: cadastro assistido de diaristas (só resultado e data da verificação, sem cópias de documentos).
 - Para dar acesso a outra pessoa: `insert into diacerto.autorizados (email) values ('pessoa@gmail.com');`
 - A Data API do projeto expõe os schemas `public` (DizTudo) e `diacerto`, com CORS só para `https://pessoal.kovags.com`.
+
+## Cadastro assistido de diaristas
+
+- `#/trabalhe`: a candidata deixa nome, WhatsApp e região; o pedido entra na fila da operação.
+- `#/operacao`: lista de candidaturas e início de um cadastro na hora.
+- `#/operacao/cadastro/<id>`: seis etapas (dados, serviços, preços, agenda, verificação, revisão). A aprovação
+  só é liberada sem pendências: preços acima do piso, agenda inicial, os seis itens de verificação conferidos e
+  o aceite do código de conduta registrado. Aprovar cria o perfil (primeiro nome e inicial do sobrenome) e a
+  agenda das próximas 3 semanas. A reprovação exige motivo, de uso interno.
 
 ## Regras de negócio implementadas
 
