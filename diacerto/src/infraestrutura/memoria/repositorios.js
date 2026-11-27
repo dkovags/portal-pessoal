@@ -14,6 +14,17 @@ export function repositorioDiaristasEmMemoria(iniciais) {
     },
     async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
     async salvar(d) { dados.set(d.id, clonar(d)); },
+    async criar(d) { if (dados.has(d.id)) throw new Error('Diarista já existe.'); dados.set(d.id, clonar(d)); },
+  };
+}
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioCandidaturas} */
+export function repositorioCandidaturasEmMemoria(iniciais = []) {
+  const dados = new Map(iniciais.map((c) => [c.id, clonar(c)]));
+  return {
+    async listar() { return [...dados.values()].map(clonar); },
+    async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
+    async salvar(c) { dados.set(c.id, clonar({ ...dados.get(c.id), ...c })); },
   };
 }
 

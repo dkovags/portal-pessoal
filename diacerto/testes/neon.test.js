@@ -56,3 +56,21 @@ test('neon: preços e agenda da diarista são regravados', async () => {
   await casos.definirDisponibilidade('d1', livre, null);
   assert.ok(!db.dados.disponibilidade.some((x) => x.diarista_id === 'd1' && x.data === livre));
 });
+
+test('neon: candidatura aprovada vira diarista com agenda no banco', async () => {
+  const { db, casos } = montar();
+  db.dados.candidaturas = [];
+  const c = await casos.iniciarCadastro({ nome: 'Joaquina Alves', celular: '61911112222' });
+  await casos.atualizarCandidatura(c.id, {
+    regioes: ['Asa Norte'], tarefas: ['Limpeza geral'], anosExperiencia: 4,
+    precos: { diaria: reais(170), meiaDiaria: reais(95), transporte: reais(15), descontoPacote: 0.05 },
+    agenda: { diasDaSemana: [2, 4], inicio: 8, fim: 17 },
+    verificacao: { identidade: 'ok', certidao_pcdf: 'ok', certidao_pf: 'ok', referencia_1: 'ok', referencia_2: 'ok', conversa: 'ok' },
+  });
+  await casos.registrarAceiteDaConduta(c.id);
+  const { diarista } = await casos.aprovarCandidatura(c.id);
+  assert.equal(db.dados.diaristas.find((d) => d.id === diarista.id).diaria, reais(170));
+  assert.ok(db.dados.disponibilidade.filter((x) => x.diarista_id === diarista.id).length >= 5);
+  assert.equal(db.dados.candidaturas[0].status, 'aprovada');
+  assert.equal(db.dados.candidaturas[0].diarista_id, diarista.id);
+});

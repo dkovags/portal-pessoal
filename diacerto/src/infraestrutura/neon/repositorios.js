@@ -2,7 +2,7 @@
 // `db` é o construtor de consultas já apontado para o schema diacerto.
 import {
   diaristaDeLinha, linhaDeDiarista, atendimentoDeLinha, linhaDeAtendimento,
-  pacoteDeLinha, linhaDePacote, chaveDia,
+  pacoteDeLinha, linhaDePacote, chaveDia, candidaturaDeLinha, linhaDeCandidatura,
 } from './mapeamento.js';
 
 export class FalhaNoBanco extends Error {
@@ -32,6 +32,11 @@ export function repositorioDiaristasNeon(db, relogio) {
     async obter(id) {
       const linha = await exec('carregar a profissional', db.from('diaristas').select(DIARISTA_COMPLETA).eq('id', id).maybeSingle());
       return linha ? diaristaDeLinha(linha) : null;
+    },
+    async criar(d) {
+      await exec('criar o perfil da profissional', db.from('diaristas').insert(linhaDeDiarista(d)));
+      const linhas = Object.entries(d.disponibilidade).map(([data, j]) => ({ diarista_id: d.id, data, hora_inicio: j.inicio, hora_fim: j.fim }));
+      if (linhas.length) await exec('gravar a agenda inicial', db.from('disponibilidade').insert(linhas));
     },
     async salvar(d) {
       await exec('salvar os dados da profissional', db.from('diaristas').update(linhaDeDiarista(d)).eq('id', d.id));
@@ -103,4 +108,16 @@ export function pagamentoRegistrado(db) {
 
 export function notificadorRegistrado(db) {
   return { async enviar(m) { await exec('registrar a notificação', db.from('eventos').insert({ tipo: 'notificacao', dados: m })); } };
+}
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioCandidaturas} */
+export function repositorioCandidaturasNeon(db) {
+  return {
+    async listar() { return (await exec('carregar as candidaturas', db.from('candidaturas').select('*'))).map(candidaturaDeLinha); },
+    async obter(id) {
+      const l = await exec('carregar a candidatura', db.from('candidaturas').select('*').eq('id', id).maybeSingle());
+      return l ? candidaturaDeLinha(l) : null;
+    },
+    async salvar(c) { await exec('salvar a candidatura', db.from('candidaturas').upsert(linhaDeCandidatura(c), { onConflict: 'id' })); },
+  };
 }

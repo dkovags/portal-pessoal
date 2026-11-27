@@ -13,7 +13,7 @@ export async function telaInicio() {
       <h1 class="manchete">Escolha sua diarista e agende de novo com quem você confia.</h1>
       <p class="mudo">Compare perfis e horários. Pagamento organizado e suporte antes, durante e depois do atendimento.</p>
       <a class="btn" href="#/busca">Encontrar profissional</a>
-      <a class="btn contorno" href="#/diarista">Quero trabalhar com o DiaCerto</a>
+      <a class="btn contorno" href="#/trabalhe">Quero trabalhar com o DiaCerto</a>
     </section>
     <section class="cartao aviso">${icone.cupom}<p><strong>Lançamento:</strong> use o cupom LANCAMENTO e ganhe R$ 30 de desconto em cada atendimento até [DATA FINAL DO LANÇAMENTO].</p></section>
     <section class="pilha">

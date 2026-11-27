@@ -61,3 +61,15 @@ hr{border:none;border-top:1px solid var(--linha);margin:2px 0;width:100%}
 .cartao.aviso svg,.cartao.ajuda svg{flex-shrink:0;width:22px;height:22px}
 .link-claro{background:none;border:none;padding:0;color:#BFE3DE;font:600 12.5px Inter,sans-serif;text-decoration:underline;cursor:pointer}
 .portao{min-height:80vh;justify-content:center}
+.marcavel{flex-direction:row;align-items:center;gap:0;font-weight:600;color:var(--tinta)}
+.marcavel input{position:absolute;opacity:0;width:1px;height:1px}
+.marcavel span{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--borda);background:#fff;font-size:13.5px;cursor:pointer}
+.marcavel input:checked+span{background:var(--primaria);border-color:var(--primaria);color:#fff}
+.marcavel input:focus-visible+span{outline:3px solid #0A5CFF;outline-offset:1px}
+fieldset{border:none;padding:0;margin:0;min-width:0}fieldset.cartao{padding:14px 16px;border:1px solid var(--linha)}
+.rotulo{font-size:12.5px;font-weight:700;color:var(--mudo);padding:0;margin-bottom:6px}
+.passos-nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.passos-nav a{flex:0 0 auto;padding:8px 12px;border-radius:999px;background:#EEF0EC;color:var(--mudo);font:600 12.5px Inter,sans-serif;text-decoration:none}
+.passos-nav a.ativo{background:var(--primaria);color:#fff}
+.lista{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+details summary{cursor:pointer;min-height:24px}

@@ -54,3 +54,21 @@ export function linhaDeAtendimento(a) {
 
 export const pacoteDeLinha = (l) => ({ id: l.id, clienteId: l.cliente_id, diaristaId: l.diarista_id, total: l.total, usados: l.usados, validade: new Date(l.validade) });
 export const linhaDePacote = (p) => ({ id: p.id, cliente_id: p.clienteId, diarista_id: p.diaristaId, total: p.total, usados: p.usados, validade: new Date(p.validade).toISOString() });
+
+export const candidaturaDeLinha = (l) => ({
+  id: l.id, nome: l.nome, celular: l.celular, status: l.status, regioes: l.regioes ?? [], tarefas: l.tarefas ?? [],
+  naoFaz: l.nao_faz ?? '', anosExperiencia: l.anos_experiencia ?? 0,
+  precos: { diaria: l.diaria, meiaDiaria: l.meia_diaria, transporte: l.transporte, descontoPacote: Number(l.desconto_pacote) },
+  agenda: { diasDaSemana: l.agenda_dias ?? [], inicio: l.agenda_inicio, fim: l.agenda_fim },
+  verificacao: l.verificacao ?? {}, aceiteConduta: l.aceite_conduta_em ?? null,
+  motivoReprovacao: l.motivo_reprovacao ?? '', diaristaId: l.diarista_id ?? null, criadaEm: new Date(l.criada_em),
+});
+
+export const linhaDeCandidatura = (c) => ({
+  id: c.id, nome: c.nome, celular: c.celular, status: c.status, regioes: c.regioes, tarefas: c.tarefas,
+  nao_faz: c.naoFaz, anos_experiencia: Number(c.anosExperiencia) || 0,
+  diaria: c.precos.diaria, meia_diaria: c.precos.meiaDiaria, transporte: c.precos.transporte, desconto_pacote: c.precos.descontoPacote,
+  agenda_dias: c.agenda.diasDaSemana, agenda_inicio: c.agenda.inicio, agenda_fim: c.agenda.fim,
+  verificacao: c.verificacao, aceite_conduta_em: c.aceiteConduta, motivo_reprovacao: c.motivoReprovacao,
+  diarista_id: c.diaristaId, ...(c.criadaEm ? { criada_em: new Date(c.criadaEm).toISOString() } : {}),
+});
