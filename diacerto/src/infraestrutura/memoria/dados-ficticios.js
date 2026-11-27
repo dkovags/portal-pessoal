@@ -82,7 +82,7 @@ export function gerarDadosFicticios(hoje) {
     atendimento('c2', 'd1', proximoDiaUtil(hoje, 3), STATUS.SOLICITADO),
     atendimento('c3', 'd2', -5, STATUS.CANCELADO),
   ];
-  atendimentos[atendimentos.length - 1].observacoes = 'Tenho um gato. A chave fica na portaria.';
+  atendimentos.find((a) => a.status === STATUS.SOLICITADO).observacoes = 'Tenho um gato. A chave fica na portaria.';
 
   const validade = new Date(hoje); validade.setMonth(validade.getMonth() + 3);
   const pacotes = [{ id: 'p1', clienteId: 'c1', diaristaId: 'd1', total: 4, usados: 1, validade }];

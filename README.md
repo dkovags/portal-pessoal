@@ -13,8 +13,8 @@ No kovags.com, o `.htaccess` libera CORS para este endereço e redireciona `kova
 ## DiaCerto (`/diacerto/`)
 
 Protótipo da plataforma de contratação de diaristas, em camadas (domínio, aplicação, infraestrutura,
-apresentação), publicado em `pessoal.kovags.com/diacerto/` direto deste repositório. Roda com dados fictícios em
-memória. Detalhes e testes em [`diacerto/README.md`](diacerto/README.md).
+apresentação), publicado em `pessoal.kovags.com/diacerto/` direto deste repositório, com servidor no Neon Functions
+(projeto Neon `diacerto`). Detalhes e testes em [`diacerto/README.md`](diacerto/README.md).
 
 ## SplitApp (`/splitapp/`)
 
