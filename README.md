@@ -16,6 +16,22 @@ Protótipo da plataforma de contratação de diaristas, em camadas (domínio, ap
 apresentação), publicado em `pessoal.kovags.com/diacerto/` direto deste repositório. Roda com dados fictícios em
 memória. Detalhes e testes em [`diacerto/README.md`](diacerto/README.md).
 
+## SplitApp (`/splitapp/`)
+
+Divisão de despesas no estilo do Splitwise, publicada em `pessoal.kovags.com/splitapp/` direto deste repositório.
+
+- **Funções:** grupos e pessoas; despesas com um ou vários pagadores; divisão igual, por valores, percentual, por cotas
+  ou igual com ajustes; acertos (pagamentos); saldos por pessoa e por grupo, com opção de simplificar dívidas;
+  várias moedas; despesas recorrentes; comentários; exclusão com restauração; histórico; busca; resumo por categoria;
+  exportação em CSV.
+- **Conversão pelo print:** numa despesa, num acerto ou na conversão dos saldos de um grupo, o print da conversão
+  (Wise, banco, cartão) é lido no próprio navegador com Tesseract.js. O app oferece a taxa efetiva (valor pago ÷ valor
+  recebido, já com tarifas) e o câmbio escrito no print; também aceita taxa digitada ou cotação de referência (BCE).
+- **Acesso e dados:** mesmo login Google do DizTudo (Neon Auth do projeto `diztudo`); só `kovags@gmail.com` entra.
+  Os dados ficam em `public.splitapp` (um registro por usuário, campo `dados` em JSONB), com a mesma RLS de `estado`.
+- **Teste local:** `python3 -m http.server` na raiz e abrir `http://localhost:8000/splitapp/?local=1` (dados no
+  navegador, sem login; só funciona em localhost).
+
 ## DizTudo (`/diztudo/`)
 
 Planejador de estudos para concursos, publicado em `pessoal.kovags.com/diztudo/` direto deste repositório
