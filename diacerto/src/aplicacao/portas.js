@@ -78,6 +78,13 @@
  * @property {(p:Pacote) => Promise<void>} salvar
  */
 
+/**
+ * @typedef {object} RepositorioAvaliacoes
+ * @property {(atendimentoId:string) => Promise<{doCliente:any|null, daDiarista:any|null}>} doAtendimento
+ * @property {(av:any, ctx:{clienteId:string, diaristaId:string, publica:any|null}) => Promise<void>} salvar
+ *   a avaliação do cliente (publica) também passa a aparecer no perfil da profissional
+ */
+
 /** @typedef {{valor:(codigo:string, clienteId:string)=>Promise<number|null>}} ServicoCupons */
 
 /**

@@ -52,3 +52,25 @@ export function confirmarChegada(atendimento, codigo) {
   }
   return mudarStatus(atendimento, STATUS.EM_ANDAMENTO);
 }
+
+export const LIMITE_REMARCACOES = 1;
+
+/**
+ * Remarcação pelo cliente: uma vez, até 24h antes do horário original. O pedido volta para
+ * a diarista aceitar o novo dia; a cobrança já autorizada é mantida (não cobra de novo).
+ * @param {Atendimento & {remarcacoes?:number}} a @param {{inicio:Date, horaInicio:number, horaFim:number, agora:Date}} novo
+ */
+export function remarcarAtendimento(a, novo, horasMinimas = 24) {
+  if (![STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status)) {
+    throw new RegraDeNegocioViolada('NAO_REMARCAVEL', 'Só dá para remarcar atendimentos ainda não iniciados.');
+  }
+  if ((a.remarcacoes ?? 0) >= LIMITE_REMARCACOES) {
+    throw new RegraDeNegocioViolada('JA_REMARCADO', 'Este atendimento já foi remarcado uma vez. Cancele e faça uma nova reserva.');
+  }
+  if ((a.inicio.getTime() - novo.agora.getTime()) / 36e5 < horasMinimas) {
+    throw new RegraDeNegocioViolada('PRAZO_REMARCACAO', `A remarcação precisa ser feita até ${horasMinimas} horas antes do horário marcado.`);
+  }
+  if (novo.inicio.getTime() <= novo.agora.getTime()) throw new RegraDeNegocioViolada('DATA_PASSADA', 'Escolha uma data futura.');
+  return { ...a, inicio: novo.inicio, horaInicio: novo.horaInicio, horaFim: novo.horaFim,
+    status: STATUS.SOLICITADO, remarcacoes: (a.remarcacoes ?? 0) + 1 };
+}

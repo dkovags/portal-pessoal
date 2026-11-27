@@ -27,7 +27,7 @@ async function completarDiaristas(db, linhas) {
   if (!linhas.length) return [];
   const ids = linhas.map((l) => l.id);
   const disp = await db.consultar('select * from diacerto.disponibilidade where diarista_id in (select json_array_elements_text($1::json))', [ids]);
-  const aval = await db.consultar('select diarista_id, nota, texto, autor, mes from diacerto.avaliacoes where diarista_id in (select json_array_elements_text($1::json)) order by id', [ids]);
+  const aval = await db.consultar('select diarista_id, nota, texto, autor, mes from diacerto.avaliacoes where diarista_id in (select json_array_elements_text($1::json)) order by id desc', [ids]);
   return linhas.map((l) => diaristaDeLinha({ ...l, disponibilidade: disp.filter((x) => x.diarista_id === l.id), avaliacoes: aval.filter((x) => x.diarista_id === l.id) }));
 }
 
@@ -99,6 +99,24 @@ export function criarRepositoriosPostgres(db, relogio) {
     ocorrencias: {
       async listar() { return (await db.consultar('select * from diacerto.ocorrencias')).map(ocorrenciaDeLinha); },
       async salvar(o) { await gravar(db, 'ocorrencias', linhaDeOcorrencia(o)); },
+    },
+    avaliacoes: {
+      async doAtendimento(id) {
+        const [c] = await db.consultar('select nota, texto as comentario, criada_em from diacerto.avaliacoes where atendimento_id = $1', [id]);
+        const [d] = await db.consultar('select nota, comentario, criada_em from diacerto.avaliacoes_cliente where atendimento_id = $1', [id]);
+        const conv = (x, lado) => (x ? { atendimentoId: id, lado, nota: Number(x.nota), comentario: x.comentario, criadaEm: new Date(x.criada_em) } : null);
+        return { doCliente: conv(c, 'cliente'), daDiarista: conv(d, 'diarista') };
+      },
+      async salvar(av, ctx) {
+        if (av.lado === 'cliente') {
+          await db.executar(`insert into diacerto.avaliacoes (diarista_id, nota, texto, autor, mes, atendimento_id, criada_em)
+            values ($1, $2, $3, $4, $5, $6, $7::timestamptz)`,
+          [ctx.diaristaId, av.nota, ctx.publica.texto, ctx.publica.autor, ctx.publica.mes, av.atendimentoId, new Date(av.criadaEm).toISOString()]);
+        } else {
+          await db.executar(`insert into diacerto.avaliacoes_cliente (atendimento_id, cliente_id, nota, comentario, criada_em)
+            values ($1, $2, $3, $4, $5::timestamptz)`, [av.atendimentoId, ctx.clienteId, av.nota, av.comentario, new Date(av.criadaEm).toISOString()]);
+        }
+      },
     },
     perfis: {
       async porEmail(email) {

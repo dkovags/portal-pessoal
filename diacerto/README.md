@@ -59,7 +59,7 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 
 - Projeto atual: `banco/projeto-diacerto/001_esquema.sql` (esquema) e `002_carga_ficticia.sql`
   (gerado por `node banco/gerar-carga.js`).
-- `banco/projeto-diacerto/003_email_candidatura.sql`: e-mail da candidata (aplicada).
+- `banco/projeto-diacerto/003` a `005`: e-mail da candidata, avaliações e remarcação (aplicadas; o `001` já as inclui).
 - `banco/001` a `004`: esquema provisório usado antes no projeto Neon `diztudo`; ficou lá sem uso.
 
 ## Cadastro assistido de diaristas
@@ -81,6 +81,16 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 - **Indicadores:** os critérios de interrupção do piloto (recompra em 30 dias, pares que sumiram, cancelamentos,
   faltas, margem de contribuição média e ocorrências graves abertas há mais de 72h), com faixa seguir, ajustar ou
   parar, além dos números do mês. Custos e faixas ficam em `src/dominio/parametros.js`.
+
+## Cliente e profissional
+
+- **Cancelar:** antes de confirmar, o cliente vê quanto volta para ele e quanto fica com a profissional.
+- **Remarcar:** uma vez, até 24 horas antes; o pedido volta para a profissional aceitar o novo dia, sem nova
+  cobrança e sem gastar outro atendimento do pacote.
+- **Pedir ajuda:** cliente ou profissional escolhe o atendimento e o que aconteceu; vira uma ocorrência na operação.
+  Assédio, risco e acidente são graves e avisam a operação. A profissional pede ajuda sem o cliente saber.
+- **Avaliações:** até 30 dias depois do atendimento concluído, uma por lado. A do cliente aparece no perfil da
+  profissional sem identificar o cliente; a da profissional sobre o cliente é interna. A operação vê as duas.
 
 ## Regras de negócio implementadas
 

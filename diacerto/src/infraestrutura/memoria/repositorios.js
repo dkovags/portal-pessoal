@@ -89,3 +89,18 @@ export function repositorioOcorrenciasEmMemoria(iniciais = []) {
     async salvar(o) { dados.set(o.id, clonar(o)); },
   };
 }
+
+/** @returns {import('../../aplicacao/portas.js').RepositorioAvaliacoes} */
+export function repositorioAvaliacoesEmMemoria(diaristas) {
+  const porAtendimento = new Map();
+  return {
+    async doAtendimento(id) { const r = porAtendimento.get(id) ?? {}; return { doCliente: r.cliente ? clonar(r.cliente) : null, daDiarista: r.diarista ? clonar(r.diarista) : null }; },
+    async salvar(av, ctx) {
+      porAtendimento.set(av.atendimentoId, { ...(porAtendimento.get(av.atendimentoId) ?? {}), [av.lado]: clonar(av) });
+      if (ctx.publica) {
+        const d = await diaristas.obter(ctx.diaristaId);
+        await diaristas.salvar({ ...d, avaliacoes: [ctx.publica, ...d.avaliacoes] });
+      }
+    },
+  };
+}

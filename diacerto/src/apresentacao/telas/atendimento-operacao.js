@@ -9,6 +9,7 @@ const opcoes = (mapa, atual) => Object.entries(mapa).map(([k, r]) => html`<optio
 export async function telaAtendimentoOperacao(ctx, rota) {
   const id = rota.params[1];
   const a = await ctx.casos.obterAtendimentoOperacao(id);
+  const aval = await ctx.casos.avaliacoesDoAtendimento(id);
   const e = ctx.estado('op-at-' + id, { tipo: 'dano', gravidade: 'moderada', abertoPor: 'cliente', descricao: '', erro: '', resolucao: {}, reembolso: {} });
   const v = a.valores;
   return {
@@ -25,6 +26,12 @@ export async function telaAtendimentoOperacao(ctx, rota) {
         <div class="entre"><span>Receita da plataforma</span><strong>${moeda(v.receitaPlataforma)}</strong></div>
         ${v.cupom ? html`<div class="entre desconto"><span>Cupom</span><span>${moeda(-v.cupom)}</span></div>` : ''}
       </section>
+
+      ${a.status === 'concluido' ? html`<section class="cartao pilha-curta pequeno">
+        <h2 class="subtitulo">Avaliações</h2>
+        <span>Cliente avaliou a profissional: ${aval.doCliente ? html`<strong>${'★'.repeat(aval.doCliente.nota)}</strong>${aval.doCliente.comentario ? ` "${aval.doCliente.comentario}"` : ''}` : 'ainda não'}</span>
+        <span>Profissional avaliou o cliente: ${aval.daDiarista ? html`<strong>${'★'.repeat(aval.daDiarista.nota)}</strong>${aval.daDiarista.comentario ? ` "${aval.daDiarista.comentario}"` : ''}` : 'ainda não'}</span>
+      </section>` : ''}
 
       <h2 class="subtitulo">Ocorrências</h2>
       ${a.ocorrencias.length === 0 ? html`<p class="mudo pequeno">Nenhuma ocorrência neste atendimento.</p>` : ''}

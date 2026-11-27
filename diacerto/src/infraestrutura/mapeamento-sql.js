@@ -31,7 +31,7 @@ export function atendimentoDeLinha(l) {
     inicio: deDia(l.data, l.hora_inicio), horaInicio: l.hora_inicio, horaFim: l.hora_fim,
     duracao: l.duracao, modalidade: l.modalidade, status: l.status, metodo: l.metodo,
     observacoes: l.observacoes ?? '', codigoConfirmacao: l.codigo_confirmacao,
-    autorizacao: l.autorizacao ?? undefined, concluidoEm: l.concluido_em ? new Date(l.concluido_em) : undefined,
+    autorizacao: l.autorizacao ?? undefined, concluidoEm: l.concluido_em ? new Date(l.concluido_em) : undefined, remarcacoes: l.remarcacoes ?? 0,
     valores: {
       servico: l.servico, transporte: l.transporte, taxaCliente: l.taxa_cliente, cupom: l.cupom, comissao: l.comissao,
       totalCliente: l.total_cliente, recebeDiarista: l.recebe_diarista, receitaPlataforma: l.receita_plataforma,
@@ -46,7 +46,7 @@ export function linhaDeAtendimento(a) {
     hora_inicio: a.horaInicio, hora_fim: a.horaFim, duracao: a.duracao, modalidade: a.modalidade,
     status: a.status, metodo: a.metodo ?? 'pix', observacoes: a.observacoes ?? '',
     codigo_confirmacao: a.codigoConfirmacao, autorizacao: a.autorizacao ?? null,
-    concluido_em: a.concluidoEm ? new Date(a.concluidoEm).toISOString() : null,
+    concluido_em: a.concluidoEm ? new Date(a.concluidoEm).toISOString() : null, remarcacoes: a.remarcacoes ?? 0,
     servico: v.servico, transporte: v.transporte, taxa_cliente: v.taxaCliente, cupom: v.cupom, comissao: v.comissao,
     total_cliente: v.totalCliente, recebe_diarista: v.recebeDiarista, receita_plataforma: v.receitaPlataforma,
   };

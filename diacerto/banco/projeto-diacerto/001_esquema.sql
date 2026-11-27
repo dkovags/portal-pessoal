@@ -43,7 +43,10 @@ create table diacerto.avaliacoes (
   nota numeric(2,1) not null check (nota between 1 and 5),
   texto text not null,
   autor text not null,
-  mes text not null
+  mes text not null,
+  atendimento_id text unique,
+  criada_em timestamptz not null default now(),
+  check (length(texto) <= 300)
 );
 
 create table diacerto.pacotes (
@@ -79,6 +82,7 @@ create table diacerto.atendimentos (
   total_cliente integer not null,
   recebe_diarista integer not null,
   receita_plataforma integer not null check (receita_plataforma >= 0),
+  remarcacoes smallint not null default 0 check (remarcacoes between 0 and 1),
   criado_em timestamptz not null default now(),
   check (hora_inicio >= 7 and hora_fim <= 20 and hora_fim > hora_inicio),
   check (total_cliente = servico + transporte + taxa_cliente - cupom),
@@ -159,3 +163,12 @@ create table diacerto.perfis (
 );
 
 insert into diacerto.perfis (email, papel) values ('kovags@gmail.com', 'operacao');
+
+create table diacerto.avaliacoes_cliente (
+  atendimento_id text primary key references diacerto.atendimentos(id),
+  cliente_id text not null references diacerto.clientes(id),
+  nota smallint not null check (nota between 1 and 5),
+  comentario text not null default '' check (length(comentario) <= 300),
+  criada_em timestamptz not null default now()
+);
+alter table diacerto.avaliacoes add foreign key (atendimento_id) references diacerto.atendimentos(id);

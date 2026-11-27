@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { ajuda, erro } from '../componentes.js';
+import { ajuda, erro, formAvaliacao, ligarAvaliacoes } from '../componentes.js';
 import { moeda, dataCurta, dataLonga, horario, percentual, lerReais } from '../formatos.js';
 import { chaveDia } from '../../aplicacao/datas.js';
 
@@ -9,7 +9,8 @@ export async function telaDiarista(ctx, rota) {
   const aba = rota.params[0] ?? 'pedidos';
   const id = ctx.sessao.diaristaId;
   const painel = await ctx.casos.painelDiarista(id);
-  const e = ctx.estado('diarista', { codigos: {}, erro: '', okPrecos: '' });
+  const e = ctx.estado('diarista', { codigos: {}, erro: '', okPrecos: '', okAvaliacao: '' });
+  const pendentesAval = aba === 'pedidos' ? await ctx.casos.pendentesDeAvaliacao({ diaristaId: id }) : [];
   const primeiro = painel.diarista.nome.split(' ')[0];
 
   const conteudo = {
@@ -42,8 +43,13 @@ export async function telaDiarista(ctx, rota) {
           <span class="mudo pequeno">${a.clienteNome} · você recebe ${moeda(a.valores.recebeDiarista)}</span>
           <div class="linha"><label class="cresce">Código da cliente<input inputmode="numeric" maxlength="4" data-codigo="${a.id}" value="${e.codigos[a.id] ?? ''}"></label>
             <button type="button" class="btn pequeno-btn" data-chegada="${a.id}">Confirmar chegada</button></div>
-          <span class="mudo mini">O código só libera o pagamento. Não mede horário. Não conseguiu? <a href="#/ajuda">Avise o suporte</a>.</span>
+          <span class="mudo mini">O código só libera o pagamento. Não mede horário. Não conseguiu? <a href="#/ajuda?de=diarista&amp;atendimento=${a.id}">Avise o suporte</a>.</span>
         </div>`)}
+      ${e.okAvaliacao ? html`<p class="ok" role="status">${e.okAvaliacao}</p>` : ''}
+      ${pendentesAval.length ? html`<h2 class="subtitulo">Avalie os clientes</h2>
+        ${formAvaliacao(pendentesAval[0], `${pendentesAval[0].com} · ${dataCurta(pendentesAval[0].inicio)}`, 'Só a operação vê. Ex.: deixou os produtos, tratou bem, imóvel maior que o informado.')}
+        ${pendentesAval.length > 1 ? html`<details class="pilha-curta"><summary class="pequeno link-forte">Mais ${pendentesAval.length - 1} para avaliar</summary>
+          <div class="pilha" style="margin-top:10px">${pendentesAval.slice(1).map((p) => formAvaliacao(p, `${p.com} · ${dataCurta(p.inicio)}`, 'Só a operação vê.'))}</div></details>` : ''}` : ''}
       ${erro(e.erro)}`,
 
     agenda: () => {
@@ -94,9 +100,10 @@ export async function telaDiarista(ctx, rota) {
         ${ABAS.map(([k, r]) => html`<a href="#/diarista/${k}" class="${k === aba ? html`ativa` : ''}" ${k === aba ? html`aria-current="page"` : ''}>${r}${k === 'pedidos' && painel.pendentes.length ? html` <span class="contador">${painel.pendentes.length}</span>` : ''}</a>`)}
       </nav>
       <section class="pilha">${(conteudo[aba] ?? conteudo.pedidos)()}</section>
-      ${ajuda('Seguro de acidentes pessoais em todo atendimento confirmado.')}`,
+      ${ajuda('Seguro de acidentes pessoais em todo atendimento confirmado.', '#/ajuda?de=diarista')}`,
     ligar(raiz) {
-      const agir = async (fn) => { e.erro = ''; e.okPrecos = ''; try { await fn(); } catch (falha) { e.erro = falha.message; } ctx.redesenhar(); };
+      const agir = async (fn) => { e.erro = ''; e.okPrecos = ''; e.okAvaliacao = ''; try { await fn(); } catch (falha) { e.erro = falha.message; } ctx.redesenhar(); };
+      ligarAvaliacoes(raiz, (p) => agir(async () => { await ctx.casos.avaliarCliente({ ...p, diaristaId: id }); e.okAvaliacao = 'Avaliação enviada.'; }));
       raiz.querySelectorAll('[data-responder]').forEach((b) => b.addEventListener('click', () => agir(() =>
         ctx.casos.responderPedido({ atendimentoId: b.dataset.responder, diaristaId: id, aceitar: b.dataset.aceitar === 'sim' }))));
       raiz.querySelectorAll('[data-codigo]').forEach((i) => i.addEventListener('input', () => { e.codigos[i.dataset.codigo] = i.value; }));
