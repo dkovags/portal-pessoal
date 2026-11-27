@@ -1,4 +1,4 @@
-import { formatarReais } from '../dominio/index.js';
+import { formatarReais, TIPOS_IMOVEL } from '../dominio/index.js';
 
 export const moeda = formatarReais;
 const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -17,3 +17,13 @@ export function lerReais(texto) {
   const n = Number(limpo);
   return Number.isFinite(n) ? Math.round(n * 100) : NaN;
 }
+
+/** "qui, 3 dez, 18h" (ou 18h30) */
+export const quando = (v) => {
+  const d = new Date(v);
+  return `${dataCurta(d)}, ${d.getHours()}h${d.getMinutes() ? String(d.getMinutes()).padStart(2, '0') : ''}`;
+};
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+/** "Apartamento · 2 quartos · 1 banheiro · 1 gato" */
+export const descreverImovel = (i) => (i ? [TIPOS_IMOVEL[i.tipo] ?? i.tipo, plural(i.quartos, 'quarto', 'quartos'),
+  plural(i.banheiros, 'banheiro', 'banheiros'), i.animais].filter(Boolean).join(' · ') : 'Não informado');

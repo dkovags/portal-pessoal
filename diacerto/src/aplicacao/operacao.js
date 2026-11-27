@@ -1,13 +1,16 @@
 import {
-  novaOcorrencia, resolverOcorrencia, calcularIndicadores, RegraDeNegocioViolada, PARAMETROS_PADRAO,
+  novaOcorrencia, resolverOcorrencia, calcularIndicadores, prazoDeContestacaoAberto, contestarConclusao, decidirRepasse,
+  REPASSE, RegraDeNegocioViolada, PARAMETROS_PADRAO,
 } from '../dominio/index.js';
+import { comRepassesEmDia, pagarRepasse } from './repasses.js';
 
 /**
  * Casos de uso do painel da operação: atendimentos, ocorrências, reembolsos e indicadores.
  * @param {{atendimentos:import('./portas.js').RepositorioAtendimentos, ocorrencias:import('./portas.js').RepositorioOcorrencias,
  *   clientes:import('./portas.js').RepositorioClientes, diaristas:import('./portas.js').RepositorioDiaristas,
  *   pagamento:import('./portas.js').ServicoPagamento, notificador:import('./portas.js').Notificador,
- *   relogio:import('./portas.js').Relogio, ids:import('./portas.js').GeradorDeIds, parametros?:typeof PARAMETROS_PADRAO}} dep
+ *   relogio:import('./portas.js').Relogio, ids:import('./portas.js').GeradorDeIds, locais?:import('./portas.js').RepositorioLocais,
+ *   parametros?:typeof PARAMETROS_PADRAO}} dep
  */
 export function criarCasosDeOperacao(dep) {
   const parametros = dep.parametros ?? PARAMETROS_PADRAO;
@@ -25,7 +28,7 @@ export function criarCasosDeOperacao(dep) {
 
   return {
     async listarAtendimentosOperacao({ status } = {}) {
-      const todos = await dep.atendimentos.listarTodos();
+      const todos = await comRepassesEmDia(dep, await dep.atendimentos.listarTodos());
       const ocorrencias = await dep.ocorrencias.listar();
       const filtrados = todos.filter((a) => !status || status === 'todos' || a.status === status)
         .sort((x, y) => y.inicio - x.inicio);
@@ -33,19 +36,28 @@ export function criarCasosDeOperacao(dep) {
     },
 
     async obterAtendimentoOperacao(id) {
-      const a = await dep.atendimentos.obter(id);
-      if (!a) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Atendimento não encontrado.');
+      const encontrado = await dep.atendimentos.obter(id);
+      if (!encontrado) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Atendimento não encontrado.');
+      const [a] = await comRepassesEmDia(dep, [encontrado]);
       const [comNomes] = await nomes([a]);
       const ocorrencias = (await dep.ocorrencias.listar()).filter((o) => o.atendimentoId === id)
         .sort((x, y) => new Date(y.abertaEm) - new Date(x.abertaEm));
-      return { ...comNomes, ocorrencias };
+      // a operação vê o local para atender ocorrências (RF01)
+      return { ...comNomes, ocorrencias, local: dep.locais ? await dep.locais.obter(id) : null };
     },
 
     async registrarOcorrencia(d) {
       const a = await dep.atendimentos.obter(d.atendimentoId);
       if (!a) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Atendimento não encontrado.');
-      const o = novaOcorrencia({ ...d, id: dep.ids.novo(), abertaEm: dep.relogio.agora() });
+      const agora = dep.relogio.agora();
+      // relato do cliente dentro do prazo de confirmar a conclusão vale como contestação (RF03)
+      const contesta = d.abertoPor === 'cliente' && prazoDeContestacaoAberto(a, agora);
+      const o = novaOcorrencia({ ...d, id: dep.ids.novo(), abertaEm: agora, contestacao: contesta });
       await dep.ocorrencias.salvar(o);
+      if (contesta) {
+        await dep.atendimentos.salvar(contestarConclusao(a, agora));
+        await dep.notificador.enviar({ para: a.diaristaId, canal: 'whatsapp', texto: 'O cliente relatou um problema no atendimento. O repasse fica em análise até a operação ouvir vocês.' });
+      }
       if (o.gravidade === 'grave') {
         await dep.notificador.enviar({ para: 'operacao', canal: 'email', texto: `Ocorrência grave aberta no atendimento ${a.id}. Responder em até 72h.` });
       }
@@ -66,23 +78,42 @@ export function criarCasosDeOperacao(dep) {
       return saida;
     },
 
-    /** Reembolso aprovado é devolvido ao cliente pelo provedor; nada é descontado da diarista. */
-    async resolverOcorrencia({ ocorrenciaId, resolucao, reembolso = 0 }) {
+    /**
+     * Reembolso aprovado é devolvido ao cliente pelo provedor; nada é descontado da diarista.
+     * Se a ocorrência é a contestação de uma conclusão, a operação decide o repasse: liberar ou
+     * reter (o cliente recebe de volta o valor do atendimento e a profissional não recebe).
+     */
+    async resolverOcorrencia({ ocorrenciaId, resolucao, reembolso = 0, repasse = null }) {
       const o = (await dep.ocorrencias.listar()).find((x) => x.id === ocorrenciaId);
       if (!o) throw new RegraDeNegocioViolada('NAO_ENCONTRADA', 'Ocorrência não encontrada.');
       const a = await dep.atendimentos.obter(o.atendimentoId);
-      const resolvida = resolverOcorrencia(o, { resolucao, reembolso, totalPago: a?.valores.totalCliente ?? 0, agora: dep.relogio.agora() });
+      const agora = dep.relogio.agora();
+      const resolvida = resolverOcorrencia(o, { resolucao, reembolso, totalPago: a?.valores.totalCliente ?? 0, agora });
+      const decide = o.contestacao && a?.repasse?.status === REPASSE.CONTESTADO;
+      const decidido = decide ? decidirRepasse(a, repasse, agora) : null;
+      if (decidido?.repasse.status === REPASSE.RETIDO && resolvida.reembolso > 0) {
+        throw new RegraDeNegocioViolada('REEMBOLSO', 'Ao reter o repasse, o cliente já recebe de volta o valor do atendimento. Não some outro reembolso.');
+      }
       if (resolvida.reembolso > 0) {
         await dep.pagamento.estornar({ autorizacao: a?.autorizacao ?? null, valor: resolvida.reembolso, motivo: `ocorrencia:${o.id}` });
       }
+      if (decidido?.repasse.status === REPASSE.LIBERADO) await pagarRepasse(dep, a);
+      if (decidido?.repasse.status === REPASSE.RETIDO) {
+        await dep.pagamento.estornar({ autorizacao: a.autorizacao, valor: a.valores.totalCliente, motivo: `repasse-retido:${a.id}` });
+      }
+      if (decidido) await dep.atendimentos.salvar(decidido);
       await dep.ocorrencias.salvar(resolvida);
       await dep.notificador.enviar({ para: a?.clienteId ?? 'cliente', canal: 'whatsapp', texto: 'Sua ocorrência foi resolvida.' });
-      return resolvida;
+      if (decidido) {
+        await dep.notificador.enviar({ para: a.diaristaId, canal: 'whatsapp',
+          texto: decidido.repasse.status === REPASSE.LIBERADO ? 'A análise terminou e o seu repasse foi liberado.' : 'A análise terminou e o repasse deste atendimento não será feito. Fale com a operação se quiser entender a decisão.' });
+      }
+      return { ...resolvida, repasse: decidido?.repasse.status ?? null };
     },
 
     async indicadoresDoPiloto() {
       return calcularIndicadores({
-        atendimentos: await dep.atendimentos.listarTodos(),
+        atendimentos: await comRepassesEmDia(dep, await dep.atendimentos.listarTodos()),
         ocorrencias: await dep.ocorrencias.listar(),
         agora: dep.relogio.agora(),
       }, parametros);

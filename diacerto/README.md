@@ -62,6 +62,7 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
 
 - Projeto atual: `banco/projeto-diacerto/001_esquema.sql` (esquema) e `002_carga_ficticia.sql`
   (gerado por `node banco/gerar-carga.js`).
+- `banco/projeto-diacerto/007`: local do atendimento, escopo do pedido e repasse com prazo (só acrescenta).
 - `banco/projeto-diacerto/003` a `006`: e-mail da candidata, avaliações, remarcação e, no `006`, autocadastro com
   aceites, pacote completo e parâmetros com vigência. O `001` já inclui todas; o `006` só acrescenta (a coluna
   antiga `pacotes.usados` fica, sem uso) e troca o piso fixo do banco por um mínimo absoluto (R$ 50 e R$ 30).
@@ -98,6 +99,16 @@ a raiz (`apresentacao/api/funcao.js`) usa os repositórios Postgres.
   em `src/dominio/documentos.js`: mudou o texto, muda a versão nos dois lugares, e quem já tinha aceitado aceita
   de novo no próximo acesso (`diacerto.aceites` guarda e-mail, documento, versão e data). Os documentos abrem
   também sem login (`#/termos/<documento>`).
+- **Pedido com escopo (RF02):** tipo de imóvel, quartos, banheiros e animais (lembrados para o próximo pedido),
+  tarefas escolhidas dentro do que a profissional faz e quem fornece os produtos (ela marca no painel se pode
+  levá-los). A diarista vê tudo isso antes de aceitar.
+- **Endereço só depois do aceite (RF01):** endereço e instruções de acesso ficam em `diacerto.locais_atendimento`,
+  fora do atendimento. A diarista recebe os dois só depois de aceitar e até o fim do dia do atendimento; o
+  cliente muda as instruções até o atendimento começar; a operação vê no detalhe.
+- **Conclusão com prazo (RF03):** a chegada por código não conclui mais. A diarista marca "Terminei", o cliente
+  tem 24 horas para confirmar ou contestar, e só então o repasse é capturado (com chave de idempotência). Sem
+  resposta, o repasse sai quando alguém consulta depois do prazo. Contestar, ou pedir ajuda dentro do prazo,
+  abre ocorrência e segura o repasse; a operação decide liberar ou reter (o cliente recebe o valor de volta).
 - **Pacote (`#/pacote/<diarista>`, `#/pacotes`):** compra explícita, paga de uma vez, com preço e política de
   cancelamento travados na compra. O saldo é calculado pelos atendimentos ligados ao pacote: pedido recusado ou
   cancelado no prazo devolve o atendimento; cancelado fora do prazo gasta o atendimento, paga a parte da
@@ -150,6 +161,7 @@ Sem `DIACERTO_PG`, esses testes são pulados.
 ## Pendências para sair do protótipo
 
 - Provedor de pagamento com split e WhatsApp reais.
+- Tarefa agendada para liberar repasses vencidos sem depender de consulta (hoje a liberação roda quando alguém abre as telas).
 - Revisão jurídica dos termos e da política de privacidade, com os dados entre colchetes preenchidos.
 - Operações com várias gravações (aprovar cadastro) ainda não são atômicas.
 - Este repositório é público: dados reais de clientes e diaristas nunca devem entrar aqui.

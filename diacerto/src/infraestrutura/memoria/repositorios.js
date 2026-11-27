@@ -35,6 +35,16 @@ export function repositorioClientesEmMemoria(iniciais) {
     async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
     async listar() { return [...dados.values()].map(clonar); },
     async criar(c) { dados.set(c.id, clonar(c)); },
+    async salvar(c) { dados.set(c.id, clonar(c)); },
+  };
+}
+
+/** Endereço e instruções de acesso por atendimento (RF01). @returns {import('../../aplicacao/portas.js').RepositorioLocais} */
+export function repositorioLocaisEmMemoria(iniciais = {}) {
+  const dados = new Map(Object.entries(iniciais).map(([id, l]) => [id, clonar(l)]));
+  return {
+    async obter(id) { return dados.has(id) ? clonar(dados.get(id)) : null; },
+    async salvar(id, l) { dados.set(id, clonar(l)); },
   };
 }
 

@@ -25,6 +25,7 @@ export function gerarDadosFicticios(hoje) {
       tarefas: ['Limpeza geral', 'Banheiros', 'Cozinha', 'Roupa de cama'],
       naoFaz: 'Janelas externas, áreas em altura, limpeza pós-obra.',
       precos: { diaria: reais(200), meiaDiaria: reais(110), transporte: reais(20), descontoPacote: 0.10 },
+      levaMateriais: true,
       disponibilidade: agenda(hoje, [1, 2, 3, 4], 8, 17),
       verificacao: { data: 'out/2026', resultado: 'Documento com foto, certidões de antecedentes da Polícia Civil do DF e da Polícia Federal e duas referências confirmadas por telefone.' },
       avaliacoes: [
@@ -56,22 +57,29 @@ export function gerarDadosFicticios(hoje) {
   ];
 
   const clientes = [
-    { id: 'c1', nome: 'Ana R.', endereco: 'SQN 210, Bloco [X], apto [Y]', regiao: 'Asa Norte' },
-    { id: 'c2', nome: 'Carlos M.', endereco: 'SQS 308, Bloco [X], apto [Y]', regiao: 'Asa Sul' },
-    { id: 'c3', nome: 'Paula T.', endereco: 'SQNW 108, Bloco [X], apto [Y]', regiao: 'Noroeste' },
+    { id: 'c1', nome: 'Ana R.', endereco: 'SQN 210, Bloco [X], apto [Y]', regiao: 'Asa Norte',
+      imovel: { tipo: 'apartamento', quartos: 2, banheiros: 2, animais: '' } },
+    { id: 'c2', nome: 'Carlos M.', endereco: 'SQS 308, Bloco [X], apto [Y]', regiao: 'Asa Sul',
+      imovel: { tipo: 'apartamento', quartos: 3, banheiros: 2, animais: '1 gato' } },
+    { id: 'c3', nome: 'Paula T.', endereco: 'SQNW 108, Bloco [X], apto [Y]', regiao: 'Noroeste',
+      imovel: { tipo: 'apartamento', quartos: 1, banheiros: 1, animais: '' } },
   ];
 
   const porId = Object.fromEntries(diaristas.map((d) => [d.id, d]));
+  const clientePorId = Object.fromEntries(clientes.map((c) => [c.id, c]));
   let n = 0;
   const atendimento = (clienteId, diaristaId, deslocamento, status, modalidade = 'avulso') => {
     const d = porId[diaristaId];
     const inicio = somarDias(hoje, deslocamento); inicio.setHours(8);
     const valores = calcularAtendimento({ servico: d.precos.diaria, transporte: d.precos.transporte, modalidade, descontoPacote: d.precos.descontoPacote });
     const fim = new Date(inicio); fim.setHours(17);
+    const depoisDoPrazo = new Date(fim.getTime() + 24 * 36e5);
     return { id: `a${++n}`, clienteId, diaristaId, inicio, horaInicio: 8, horaFim: 17, duracao: 'diaria', modalidade,
       valores, metodo: 'pix', observacoes: '', codigoConfirmacao: '4821', status, pacoteId: null, taxaCancelamento: 0,
       politicaCancelamento: { ...PARAMETROS_PADRAO.cancelamento },
-      ...(status === STATUS.CONCLUIDO ? { concluidoEm: fim, autorizacao: `sim-hist-${n}` } : {}) };
+      imovel: { ...clientePorId[clienteId].imovel }, tarefas: d.tarefas.slice(0, 2), materiais: 'cliente', repasse: null,
+      ...(status === STATUS.CONCLUIDO ? { concluidoEm: fim, autorizacao: `sim-hist-${n}`,
+        repasse: { status: 'liberado', liberarEm: depoisDoPrazo, decididoEm: depoisDoPrazo, origem: 'prazo' } } : {}) };
   };
 
   const atendimentos = [
@@ -85,7 +93,17 @@ export function gerarDadosFicticios(hoje) {
     atendimento('c2', 'd1', proximoDiaUtil(hoje, 3), STATUS.SOLICITADO),
     atendimento('c3', 'd2', -5, STATUS.CANCELADO),
   ];
-  atendimentos.find((a) => a.status === STATUS.SOLICITADO).observacoes = 'Tenho um gato. A chave fica na portaria.';
+  atendimentos.find((a) => a.status === STATUS.SOLICITADO).observacoes = 'Tenho um gato. Pode começar pela cozinha.';
+
+  // ontem, com a Rosa: ela marcou a conclusão hoje cedo e a Ana ainda pode confirmar ou contestar (RF03)
+  const ontem = atendimento('c1', 'd3', -1, STATUS.CONCLUIDO);
+  const marcadoEm = new Date(hoje.getTime() - 3 * 36e5);
+  Object.assign(ontem, { concluidoEm: marcadoEm, repasse: { status: 'aguardando', liberarEm: new Date(marcadoEm.getTime() + 24 * 36e5), decididoEm: null, origem: null } });
+  atendimentos.push(ontem);
+
+  // RF01: endereço e instruções de acesso guardados à parte de cada atendimento
+  const locais = Object.fromEntries(atendimentos.map((a) => [a.id, { endereco: clientePorId[a.clienteId].endereco, instrucoes: '' }]));
+  locais[atendimentos.find((a) => a.status === STATUS.SOLICITADO).id].instrucoes = 'A chave fica na portaria, em nome de Carlos.';
 
   // pacote comprado pela Ana com a Marlene um dia antes do primeiro atendimento por ele (a4)
   const pacotes = [{
@@ -120,7 +138,7 @@ export function gerarDadosFicticios(hoje) {
 
   const perfis = [{ email: 'operacao@exemplo.com', papel: 'operacao', clienteId: null, diaristaId: null }];
 
-  return { perfis, ocorrencias, diaristas, clientes, atendimentos, pacotes, parametros, aceites: [], cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
+  return { perfis, ocorrencias, diaristas, clientes, atendimentos, locais, pacotes, parametros, aceites: [], cupons: { LANCAMENTO: reais(30) }, candidaturas: [contato, emCadastro] };
 }
 
 function proximoDiaUtil(hoje, minimo) {

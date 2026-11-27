@@ -18,7 +18,10 @@ export const ABERTO_POR = Object.freeze({ cliente: 'Cliente', diarista: 'Profiss
 
 export const POLITICA_REEMBOLSO = Object.freeze({ limiteDano: reais(500), prazoGraveHoras: 72 });
 
-/** @param {{id:string, atendimentoId:string, tipo:string, gravidade:string, abertoPor:string, descricao:string, abertaEm:Date}} d */
+/**
+ * @param {{id:string, atendimentoId:string, tipo:string, gravidade:string, abertoPor:string, descricao:string, abertaEm:Date,
+ *   contestacao?:boolean}} d contestacao: aberta pelo cliente no prazo de confirmar a conclusão (segura o repasse)
+ */
 export function novaOcorrencia(d) {
   if (!TIPOS_OCORRENCIA[d.tipo]) throw new RegraDeNegocioViolada('TIPO', 'Tipo de ocorrência inválido.');
   if (!GRAVIDADES[d.gravidade]) throw new RegraDeNegocioViolada('GRAVIDADE', 'Gravidade inválida.');
@@ -28,7 +31,8 @@ export function novaOcorrencia(d) {
   // risco à segurança e acidentes são sempre graves
   const gravidade = ['seguranca', 'acidente'].includes(d.tipo) ? 'grave' : d.gravidade;
   return { id: d.id, atendimentoId: d.atendimentoId, tipo: d.tipo, gravidade, abertoPor: d.abertoPor,
-    descricao: descricao.slice(0, 1000), status: 'aberta', abertaEm: d.abertaEm, resolvidaEm: null, resolucao: '', reembolso: 0 };
+    descricao: descricao.slice(0, 1000), status: 'aberta', abertaEm: d.abertaEm, resolvidaEm: null, resolucao: '', reembolso: 0,
+    contestacao: Boolean(d.contestacao) };
 }
 
 /**
