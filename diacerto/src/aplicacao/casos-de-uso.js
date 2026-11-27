@@ -1,6 +1,7 @@
 import {
   calcularAtendimento, validarPrecosDaDiarista, verificarLimiteSemanal, verificarJanela,
   calcularCancelamentoPeloCliente, novoAtendimento, mudarStatus, confirmarChegada, remarcarAtendimento,
+  novoPacote, situacaoDoPacote, encerrarPacote as fecharPacote, aplicarParametros,
   STATUS, STATUS_ATIVOS, RegraDeNegocioViolada, PARAMETROS_PADRAO,
 } from '../dominio/index.js';
 import { chaveDia, deChave } from './datas.js';
@@ -8,6 +9,7 @@ import { criarCasosDeCadastro } from './cadastro.js';
 import { criarCasosDeOperacao } from './operacao.js';
 import { criarCasosDeAcesso } from './acessos.js';
 import { criarCasosDeAvaliacao } from './avaliacoes.js';
+import { criarCasosDeParametros } from './parametros.js';
 
 const HORAS = { diaria: 8, meiaDiaria: 4 };
 
@@ -18,13 +20,26 @@ function media(avaliacoes) {
 
 /**
  * Monta os casos de uso com as dependências injetadas (raiz de composição fica na apresentação).
+ * Com `configuracao`, cada chamada usa os parâmetros comerciais vigentes naquele momento (RF7).
  * @param {{diaristas:import('./portas.js').RepositorioDiaristas, clientes:import('./portas.js').RepositorioClientes,
  *   atendimentos:import('./portas.js').RepositorioAtendimentos, pacotes:import('./portas.js').RepositorioPacotes,
  *   cupons:import('./portas.js').ServicoCupons, pagamento:import('./portas.js').ServicoPagamento,
  *   notificador:import('./portas.js').Notificador, relogio:import('./portas.js').Relogio,
- *   ids:import('./portas.js').GeradorDeIds, parametros?:typeof PARAMETROS_PADRAO}} dep
+ *   ids:import('./portas.js').GeradorDeIds, configuracao?:import('./portas.js').RepositorioParametros,
+ *   parametros?:typeof PARAMETROS_PADRAO}} dep
  */
 export function criarCasosDeUso(dep) {
+  if (!dep.configuracao) return montarCasos(dep);
+  const nomes = Object.keys(montarCasos({ ...dep, parametros: PARAMETROS_PADRAO }));
+  // Um conjunto novo de casos por chamada: nenhuma chamada vê parâmetros trocados no meio do caminho.
+  return Object.fromEntries(nomes.map((nome) => [nome, async (...args) => {
+    const vigente = await dep.configuracao.vigente();
+    const parametros = aplicarParametros(dep.parametros ?? PARAMETROS_PADRAO, vigente?.valores);
+    return montarCasos({ ...dep, parametros })[nome](...args);
+  }]));
+}
+
+function montarCasos(dep) {
   const parametros = dep.parametros ?? PARAMETROS_PADRAO;
 
   function precoDe(diarista, duracao, modalidade, cupom = 0) {
@@ -49,6 +64,20 @@ export function criarCasosDeUso(dep) {
       .map(([data, j]) => ({ data, ...j }));
   }
 
+  /** Pacotes do cliente com saldo e situação calculados pelos atendimentos. */
+  async function pacotesDoCliente(clienteId) {
+    const [pacotes, atendimentos] = await Promise.all([dep.pacotes.listarPorCliente(clienteId), dep.atendimentos.listarPorCliente(clienteId)]);
+    const agora = dep.relogio.agora();
+    return pacotes.map((p) => situacaoDoPacote(p, atendimentos, agora));
+  }
+
+  async function pacoteDisponivel(clienteId, diaristaId, duracao) {
+    if (!clienteId) return null;
+    return (await pacotesDoCliente(clienteId))
+      .filter((p) => p.disponivel && p.diaristaId === diaristaId && (!duracao || p.duracao === duracao))
+      .sort((a, b) => new Date(a.validade) - new Date(b.validade))[0] ?? null;
+  }
+
   async function concluidosCom(diaristaId) {
     const lista = await dep.atendimentos.listarPorDiarista(diaristaId);
     return lista.filter((a) => a.status === STATUS.CONCLUIDO).length;
@@ -69,6 +98,7 @@ export function criarCasosDeUso(dep) {
     ...(dep.ocorrencias ? criarCasosDeOperacao(dep) : {}),
     ...(dep.perfis ? criarCasosDeAcesso(dep) : {}),
     ...(dep.avaliacoes ? criarCasosDeAvaliacao(dep) : {}),
+    ...(dep.configuracao ? criarCasosDeParametros(dep) : {}),
     /** @param {{regiao?:string, data?:string, duracao?:'diaria'|'meiaDiaria'|'todas'}} f */
     async buscarProfissionais(f = {}) {
       const lista = await dep.diaristas.listar({ regiao: f.regiao });
@@ -100,13 +130,19 @@ export function criarCasosDeUso(dep) {
       };
     },
 
-    async simularReserva({ diaristaId, clienteId, duracao = 'diaria', modalidade = 'avulso', codigoCupom }) {
+    async simularReserva({ diaristaId, clienteId, duracao = 'diaria', codigoCupom }) {
       const d = await dep.diaristas.obter(diaristaId);
-      const pacote = clienteId ? await dep.pacotes.obterAtivo(clienteId, diaristaId) : null;
-      const efetiva = pacote ? 'pacote' : modalidade;
+      if (!d) throw new RegraDeNegocioViolada('NAO_ENCONTRADA', 'Profissional não encontrada.');
+      const pacote = await pacoteDisponivel(clienteId, diaristaId, duracao);
+      if (pacote) {
+        // atendimento pelo pacote: preço e política de cancelamento travados na compra, já pago; cupom não se aplica
+        return { modalidade: 'pacote', pacoteAtivo: pacote, valores: { ...pacote.unitario },
+          politicaCancelamento: { ...(pacote.politicaCancelamento ?? parametros.cancelamento) } };
+      }
+      const politicaCancelamento = { ...parametros.cancelamento };
       const cupom = codigoCupom ? (await dep.cupons.valor(codigoCupom, clienteId)) : 0;
       if (codigoCupom && cupom === null) throw new RegraDeNegocioViolada('CUPOM_INVALIDO', 'Cupom inválido ou expirado.');
-      return { modalidade: efetiva, pacoteAtivo: pacote, valores: precoDe(d, duracao, efetiva, cupom ?? 0) };
+      return { modalidade: 'avulso', pacoteAtivo: null, valores: precoDe(d, duracao, 'avulso', cupom ?? 0), politicaCancelamento };
     },
 
     async solicitarReserva(p) {
@@ -127,19 +163,16 @@ export function criarCasosDeUso(dep) {
         .some((a) => chaveDia(a.inicio) === p.data && [STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status));
       if (ocupado) throw new RegraDeNegocioViolada('INDISPONIVEL', 'A profissional já tem um pedido nesse dia.');
 
-      if (p.modalidade === 'pacote' && !(await dep.pacotes.obterAtivo(c.id, d.id))) {
-        // Contratação do pacote. No piloto real, o valor dos N atendimentos é pré-autorizado
-        // no provedor de pagamento e liberado a cada atendimento concluído.
-        const validade = new Date(dep.relogio.agora());
-        validade.setMonth(validade.getMonth() + parametros.pacote.validadeMeses);
-        await dep.pacotes.salvar({ id: dep.ids.novo(), clienteId: c.id, diaristaId: d.id,
-          total: parametros.pacote.quantidade, usados: 0, validade });
+      const sim = await casos.simularReserva({ diaristaId: d.id, clienteId: c.id, duracao: p.duracao, codigoCupom: p.codigoCupom });
+      if (p.modalidade === 'pacote' && sim.modalidade !== 'pacote') {
+        throw new RegraDeNegocioViolada('SEM_PACOTE', 'Você não tem pacote com saldo com esta profissional para esta duração. Compre o pacote antes de agendar por ele.');
       }
-      const sim = await casos.simularReserva({ diaristaId: d.id, clienteId: c.id, duracao: p.duracao, modalidade: p.modalidade, codigoCupom: p.codigoCupom });
       const atendimento = novoAtendimento({
         id: dep.ids.novo(), clienteId: c.id, diaristaId: d.id, inicio, horaInicio: p.horaInicio, horaFim,
-        duracao: p.duracao, modalidade: sim.modalidade, valores: sim.valores, metodo: p.metodo,
+        duracao: p.duracao, modalidade: sim.modalidade, valores: sim.valores, metodo: sim.pacoteAtivo?.metodo ?? p.metodo,
         observacoes: (p.observacoes ?? '').slice(0, 500), codigoConfirmacao: dep.ids.codigo(),
+        pacoteId: sim.pacoteAtivo?.id ?? null, autorizacao: sim.pacoteAtivo?.autorizacao ?? undefined,
+        politicaCancelamento: sim.politicaCancelamento, taxaCancelamento: 0,
       });
       await dep.atendimentos.salvar(atendimento);
       await dep.notificador.enviar({ para: d.id, canal: 'whatsapp', texto: `Novo pedido de ${c.nome} para ${p.data}.` });
@@ -152,19 +185,17 @@ export function criarCasosDeUso(dep) {
       if (!a || a.diaristaId !== diaristaId) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Pedido não encontrado.');
       if (!aceitar) {
         const recusado = mudarStatus(a, STATUS.RECUSADO);
+        // remarcação recusada: a cobrança já autorizada volta inteira (no pacote, o atendimento volta ao saldo)
+        if (a.autorizacao && !a.pacoteId) await dep.pagamento.estornar({ autorizacao: a.autorizacao, valor: a.valores.totalCliente, motivo: `recusa:${a.id}` });
         await dep.atendimentos.salvar(recusado);
         await dep.notificador.enviar({ para: a.clienteId, canal: 'whatsapp', texto: 'A profissional não pode atender nessa data.' });
         return recusado;
       }
-      const jaAutorizado = Boolean(a.autorizacao); // remarcação: a cobrança autorizada continua valendo
-      const autorizacao = jaAutorizado ? a.autorizacao
-        : (await dep.pagamento.autorizar({ atendimentoId: a.id, valor: a.valores.totalCliente, metodo: a.metodo })).autorizacao;
+      // pacote (já pago) ou remarcação (já autorizada): não cobra de novo
+      const autorizacao = a.autorizacao
+        ?? (await dep.pagamento.autorizar({ atendimentoId: a.id, valor: a.valores.totalCliente, metodo: a.metodo })).autorizacao;
       const aceito = { ...mudarStatus(a, STATUS.ACEITO), autorizacao };
       await dep.atendimentos.salvar(aceito);
-      if (aceito.modalidade === 'pacote' && !jaAutorizado) {
-        const pacote = await dep.pacotes.obterAtivo(a.clienteId, a.diaristaId);
-        if (pacote) await dep.pacotes.salvar({ ...pacote, usados: pacote.usados + 1 });
-      }
       await dep.notificador.enviar({ para: a.clienteId, canal: 'whatsapp', texto: 'Pedido aceito.' });
       return aceito;
     },
@@ -190,9 +221,12 @@ export function criarCasosDeUso(dep) {
       const a = await dep.atendimentos.obter(atendimentoId);
       if (!a || a.clienteId !== clienteId) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Reserva não encontrada.');
       if (![STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status)) throw new RegraDeNegocioViolada('NAO_CANCELAVEL', 'Esta reserva não pode mais ser cancelada.');
-      return a.status === STATUS.SOLICITADO || !a.autorizacao
+      const calc = a.status === STATUS.SOLICITADO
         ? { gratuito: true, reembolsoCliente: a.valores.totalCliente, devidoDiarista: 0 }
-        : calcularCancelamentoPeloCliente({ inicio: a.inicio, totalCliente: a.valores.totalCliente, recebeDiarista: a.valores.recebeDiarista }, dep.relogio.agora(), parametros);
+        : calcularCancelamentoPeloCliente({ inicio: a.inicio, totalCliente: a.valores.totalCliente, recebeDiarista: a.valores.recebeDiarista,
+          politicaCancelamento: a.politicaCancelamento }, dep.relogio.agora(), parametros);
+      // pelo pacote, o cancelamento sem custo devolve o atendimento ao saldo, não dinheiro
+      return a.pacoteId && calc.gratuito ? { ...calc, reembolsoCliente: 0, voltaAoPacote: true } : { ...calc, voltaAoPacote: false };
     },
 
     async remarcarAtendimento({ atendimentoId, clienteId, data, horaInicio }) {
@@ -231,15 +265,51 @@ export function criarCasosDeUso(dep) {
     },
 
     async cancelarPeloCliente({ atendimentoId, clienteId }) {
+      const calc = await casos.simularCancelamento({ atendimentoId, clienteId });
       const a = await dep.atendimentos.obter(atendimentoId);
-      if (!a || a.clienteId !== clienteId) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Reserva não encontrada.');
-      const calc = a.status === STATUS.SOLICITADO
-        ? { gratuito: true, reembolsoCliente: a.valores.totalCliente, devidoDiarista: 0 }
-        : calcularCancelamentoPeloCliente({ ...a, totalCliente: a.valores.totalCliente, recebeDiarista: a.valores.recebeDiarista }, dep.relogio.agora(), parametros);
-      const cancelado = mudarStatus(a, STATUS.CANCELADO);
-      if (a.autorizacao) await dep.pagamento.estornar({ autorizacao: a.autorizacao, valor: calc.reembolsoCliente });
+      const cancelado = { ...mudarStatus(a, STATUS.CANCELADO), taxaCancelamento: calc.devidoDiarista };
+      if (a.autorizacao && calc.reembolsoCliente > 0) {
+        await dep.pagamento.estornar({ autorizacao: a.autorizacao, valor: calc.reembolsoCliente, motivo: `cancelamento:${a.id}` });
+      }
+      if (a.autorizacao && calc.devidoDiarista > 0) {
+        await dep.pagamento.capturarComSplit({ autorizacao: a.autorizacao, repasseDiarista: calc.devidoDiarista, motivo: `cancelamento-tardio:${a.id}` });
+      }
       await dep.atendimentos.salvar(cancelado);
+      await dep.notificador.enviar({ para: a.diaristaId, canal: 'whatsapp', texto: 'Um atendimento foi cancelado pelo cliente.' });
       return { ...cancelado, ...calc };
+    },
+
+    /** Compra explícita do pacote: paga de uma vez, preço travado, validade a partir de hoje. */
+    async comprarPacote({ clienteId, diaristaId, duracao = 'diaria', metodo = 'pix' }) {
+      const [c, d] = await Promise.all([dep.clientes.obter(clienteId), dep.diaristas.obter(diaristaId)]);
+      if (!c || !d) throw new RegraDeNegocioViolada('NAO_ENCONTRADA', 'Cadastro não encontrado.');
+      if (await pacoteDisponivel(clienteId, diaristaId, duracao)) {
+        throw new RegraDeNegocioViolada('PACOTE_ATIVO', 'Você já tem um pacote com saldo com esta profissional. Use esse antes de comprar outro.');
+      }
+      const pacote = novoPacote({ id: dep.ids.novo(), clienteId, diaristaId, duracao, precos: d.precos, metodo, agora: dep.relogio.agora() }, parametros);
+      const { autorizacao } = await dep.pagamento.autorizar({ pacoteId: pacote.id, valor: pacote.totalPago, metodo: pacote.metodo });
+      const comprado = { ...pacote, autorizacao };
+      await dep.pacotes.salvar(comprado);
+      await dep.notificador.enviar({ para: d.id, canal: 'whatsapp', texto: `${c.nome} comprou um pacote de ${pacote.total} atendimentos com você.` });
+      return situacaoDoPacote(comprado, [], dep.relogio.agora());
+    },
+
+    async meusPacotes({ clienteId }) {
+      const lista = await pacotesDoCliente(clienteId);
+      const saida = [];
+      for (const p of lista) saida.push({ ...p, diaristaNome: (await dep.diaristas.obter(p.diaristaId))?.nome ?? '?' });
+      const peso = (p) => (p.status === 'ativo' && !p.vencido ? 0 : p.status === 'ativo' ? 1 : 2);
+      return saida.sort((a, b) => peso(a) - peso(b) || new Date(b.compradoEm) - new Date(a.compradoEm));
+    },
+
+    /** Encerra e devolve o saldo; em até 7 dias sem uso, é a desistência (tudo volta). */
+    async encerrarPacote({ pacoteId, clienteId }) {
+      const p = (await pacotesDoCliente(clienteId)).find((x) => x.id === pacoteId);
+      if (!p) throw new RegraDeNegocioViolada('NAO_ENCONTRADO', 'Pacote não encontrado.');
+      const encerrado = fecharPacote(p, dep.relogio.agora());
+      await dep.pagamento.estornar({ autorizacao: p.autorizacao, valor: encerrado.reembolso, motivo: `${p.desistencia ? 'desistencia' : 'saldo'}-pacote:${p.id}` });
+      await dep.pacotes.salvar(encerrado);
+      return { ...encerrado, desistencia: p.desistencia };
     },
 
     async minhasDiaristas(clienteId) {
@@ -256,7 +326,7 @@ export function criarCasosDeUso(dep) {
         const concluidos = ats.filter((a) => a.status === STATUS.CONCLUIDO).sort((x, y) => y.inicio - x.inicio);
         const proximo = ats.filter((a) => [STATUS.SOLICITADO, STATUS.ACEITO].includes(a.status) && a.inicio >= hoje)
           .sort((x, y) => x.inicio - y.inicio)[0] ?? null;
-        const pacote = await dep.pacotes.obterAtivo(clienteId, id);
+        const pacote = await pacoteDisponivel(clienteId, id);
         const livres = await horariosLivres(d, 2);
         saida.push({ diarista: { id: d.id, nome: d.nome, iniciais: d.iniciais }, vezes: concluidos.length,
           ultima: concluidos[0]?.inicio ?? null, proximo, pacote, proximosLivres: livres });
@@ -268,20 +338,23 @@ export function criarCasosDeUso(dep) {
       const d = await dep.diaristas.obter(diaristaId);
       const ats = await dep.atendimentos.listarPorDiarista(diaristaId);
       const agora = dep.relogio.agora();
-      const nomes = new Map();
-      for (const a of ats) if (!nomes.has(a.clienteId)) nomes.set(a.clienteId, (await dep.clientes.obter(a.clienteId))?.nome ?? 'Cliente');
-      const comNome = (a) => ({ ...a, clienteNome: nomes.get(a.clienteId) });
+      const clientes = new Map();
+      for (const a of ats) if (!clientes.has(a.clienteId)) clientes.set(a.clienteId, await dep.clientes.obter(a.clienteId));
+      const comNome = (a) => ({ ...a, clienteNome: clientes.get(a.clienteId)?.nome ?? 'Cliente' });
+      // o endereço só vai para a profissional depois que ela aceita o pedido
+      const comEndereco = (a) => ({ ...comNome(a), clienteEndereco: clientes.get(a.clienteId)?.endereco ?? '' });
       const mesAtual = (a) => a.concluidoEm && a.concluidoEm.getMonth() === agora.getMonth() && a.concluidoEm.getFullYear() === agora.getFullYear();
       const concluidos = ats.filter((a) => a.status === STATUS.CONCLUIDO).sort((x, y) => y.inicio - x.inicio);
       return {
         diarista: d,
         pendentes: ats.filter((a) => a.status === STATUS.SOLICITADO).sort((x, y) => x.inicio - y.inicio).map(comNome),
-        agendados: ats.filter((a) => a.status === STATUS.ACEITO).sort((x, y) => x.inicio - y.inicio).map(comNome),
+        agendados: ats.filter((a) => a.status === STATUS.ACEITO).sort((x, y) => x.inicio - y.inicio).map(comEndereco),
         recebidoNoMes: concluidos.filter(mesAtual).reduce((s, a) => s + a.valores.recebeDiarista, 0),
         atendimentosNoMes: concluidos.filter(mesAtual).length,
         ultimosRecebimentos: concluidos.slice(0, 5).map(comNome),
         simulacao: { avulso: precoDe(d, 'diaria', 'avulso'), pacote: precoDe(d, 'diaria', 'pacote') },
-        piso: parametros.piso, janela: parametros.janela,
+        piso: parametros.piso, janela: parametros.janela, comissao: { ...parametros.comissao },
+        pacote: { quantidade: parametros.pacote.quantidade, descontoMaximo: parametros.pacote.descontoMaximo },
       };
     },
 

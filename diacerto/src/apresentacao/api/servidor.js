@@ -45,7 +45,8 @@ export function criarServidor({ casos, dep, verificarToken, origens, registrar =
         if (request.method === 'GET' && caminho.endsWith('/eu')) {
           const u = await quemE(request);
           if (!u) return responder(origem, 401, { erro: { codigo: 'LOGIN', mensagem: 'Entre com a sua conta.' } });
-          return responder(origem, 200, { resultado: { email: u.email, ...(u.perfil ?? { papel: null }) } });
+          const aceitesPendentes = u.perfil && casos.aceitesPendentes ? await casos.aceitesPendentes({ email: u.email, papel: u.perfil.papel }) : [];
+          return responder(origem, 200, { resultado: { email: u.email, ...(u.perfil ?? { papel: null }), aceitesPendentes } });
         }
         const m = caminho.match(/\/casos\/([A-Za-z]+)$/);
         if (request.method !== 'POST' || !m) return responder(origem, 404, { erro: { codigo: 'ROTA', mensagem: 'Rota não encontrada.' } });
@@ -55,7 +56,7 @@ export function criarServidor({ casos, dep, verificarToken, origens, registrar =
         if (texto.length > LIMITE_CORPO) return responder(origem, 413, { erro: { codigo: 'TAMANHO', mensagem: 'Pedido grande demais.' } });
         const { args = [] } = texto ? JSON.parse(texto) : {};
         const u = await quemE(request);
-        const permitidos = await autorizar(nome, args, u?.perfil ?? null, dep);
+        const permitidos = await autorizar(nome, args, u?.perfil ?? null, dep, u?.email ?? null);
         const resultado = await casos[nome](...permitidos);
         return responder(origem, 200, { resultado: resultado ?? null });
       } catch (falha) {

@@ -12,6 +12,7 @@ export async function telaDiarista(ctx, rota) {
   const e = ctx.estado('diarista', { codigos: {}, erro: '', okPrecos: '', okAvaliacao: '' });
   const pendentesAval = aba === 'pedidos' ? await ctx.casos.pendentesDeAvaliacao({ diaristaId: id }) : [];
   const primeiro = painel.diarista.nome.split(' ')[0];
+  const abaixoDoPiso = painel.diarista.precos.diaria < painel.piso.diaria || painel.diarista.precos.meiaDiaria < painel.piso.meiaDiaria;
 
   const conteudo = {
     pedidos: () => html`
@@ -21,14 +22,14 @@ export async function telaDiarista(ctx, rota) {
           <div class="cartao escuro pilha-curta">
             <span class="mini claro">Novo pedido · você recebe</span>
             <strong class="valor-grande">${moeda(a.valores.recebeDiarista)}</strong>
-            <span class="pequeno claro">Serviço ${moeda(a.valores.recebeDiarista - a.valores.transporte)} + transporte ${moeda(a.valores.transporte)}. Cai no seu Pix até o dia seguinte ao atendimento.</span>
+            <span class="pequeno claro">Serviço ${moeda(a.valores.recebeDiarista - a.valores.transporte)} + transporte ${moeda(a.valores.transporte)}. Você recebe depois do atendimento concluído.</span>
           </div>
           <div class="cartao pilha-curta pequeno">
             <div class="entre"><span class="mudo">Quando</span><strong>${dataCurta(a.inicio)} · ${horario(a.horaInicio, a.horaFim)}</strong></div>
-            <div class="entre"><span class="mudo">Cliente</span><strong>${a.clienteNome} · verificado</strong></div>
+            <div class="entre"><span class="mudo">Cliente</span><strong>${a.clienteNome}</strong></div>
             <div class="entre"><span class="mudo">Modalidade</span><strong>${a.modalidade === 'pacote' ? 'Pacote' : 'Avulso'}</strong></div>
             ${a.observacoes ? html`<span class="mudo">Recado: "${a.observacoes}"</span>` : ''}
-            <span class="mudo mini">O endereço completo aparece depois do aceite.</span>
+            <span class="mudo mini">O endereço aparece depois que você aceitar.</span>
           </div>
           <div class="grade2">
             <button type="button" class="btn contorno-neutro" data-responder="${a.id}" data-aceitar="nao">Não posso</button>
@@ -41,6 +42,7 @@ export async function telaDiarista(ctx, rota) {
         <div class="cartao pilha-curta">
           <strong>${dataLonga(a.inicio)} · ${horario(a.horaInicio, a.horaFim)}</strong>
           <span class="mudo pequeno">${a.clienteNome} · você recebe ${moeda(a.valores.recebeDiarista)}</span>
+          ${a.clienteEndereco ? html`<span class="pequeno">${a.clienteEndereco}</span>` : ''}
           <div class="linha"><label class="cresce">Código da cliente<input inputmode="numeric" maxlength="4" data-codigo="${a.id}" value="${e.codigos[a.id] ?? ''}"></label>
             <button type="button" class="btn pequeno-btn" data-chegada="${a.id}">Confirmar chegada</button></div>
           <span class="mudo mini">O código só libera o pagamento. Não mede horário. Não conseguiu? <a href="#/ajuda?de=diarista&amp;atendimento=${a.id}">Avise o suporte</a>.</span>
@@ -73,10 +75,10 @@ export async function telaDiarista(ctx, rota) {
       <div class="cartao escuro pilha-curta">
         <span class="mini claro">Recebido este mês</span>
         <strong class="valor-grande">${moeda(painel.recebidoNoMes)}</strong>
-        <span class="pequeno claro">${painel.atendimentosNoMes} atendimentos · repasse direto no seu Pix</span>
+        <span class="pequeno claro">${painel.atendimentosNoMes} atendimentos concluídos no mês</span>
       </div>
       ${painel.ultimosRecebimentos.map((a) => html`<div class="cartao entre pequeno"><span>${dataCurta(a.inicio)} · ${a.clienteNome}${a.modalidade === 'pacote' ? ' (pacote)' : ''}</span><strong>${moeda(a.valores.recebeDiarista)}</strong></div>`)}
-      <p class="mudo mini">Avulso: o DiaCerto fica com 20% do serviço. Pacote: 15%. O transporte é todo seu.</p>`,
+      <p class="mudo mini">Avulso: o DiaCerto fica com ${percentual(painel.comissao.avulso)} do serviço. Pacote: ${percentual(painel.comissao.pacote)}. O transporte é todo seu. Cada atendimento guarda os percentuais da época em que foi contratado.</p>`,
 
     precos: () => {
       const p = painel.diarista.precos;
@@ -85,8 +87,8 @@ export async function telaDiarista(ctx, rota) {
           <label>Diária de 8 horas<input name="diaria" inputmode="decimal" value="${(p.diaria / 100).toFixed(2).replace('.', ',')}"></label>
           <label>Meia diária de 4 horas<input name="meiaDiaria" inputmode="decimal" value="${(p.meiaDiaria / 100).toFixed(2).replace('.', ',')}"></label>
           <label>Transporte<input name="transporte" inputmode="decimal" value="${(p.transporte / 100).toFixed(2).replace('.', ',')}"></label>
-          <label>Desconto no pacote de 4 (%)<input name="descontoPacote" inputmode="numeric" value="${Math.round(p.descontoPacote * 100)}"></label>
-          <p class="mudo mini">Com esses valores, você recebe ${moeda(painel.simulacao.avulso.recebeDiarista)} por diária avulsa e ${moeda(painel.simulacao.pacote.recebeDiarista)} por diária no pacote (desconto de ${percentual(p.descontoPacote)}). Mínimo: diária ${moeda(painel.piso.diaria)}, meia diária ${moeda(painel.piso.meiaDiaria)}.</p>
+          <label>Desconto no pacote de ${painel.pacote.quantidade} (%)<input name="descontoPacote" inputmode="numeric" value="${Math.round(p.descontoPacote * 100)}"></label>
+          <p class="mudo mini">Com esses valores, você recebe ${moeda(painel.simulacao.avulso.recebeDiarista)} por diária avulsa e ${moeda(painel.simulacao.pacote.recebeDiarista)} por diária no pacote (desconto de ${percentual(p.descontoPacote)}). Mínimo: diária ${moeda(painel.piso.diaria)}, meia diária ${moeda(painel.piso.meiaDiaria)}. Desconto do pacote até ${percentual(painel.pacote.descontoMaximo)}.</p>
           ${erro(e.erro)}${e.okPrecos ? html`<p class="ok" role="status">${e.okPrecos}</p>` : ''}
           <button class="btn">Salvar preços</button>
         </form>`;
@@ -99,8 +101,9 @@ export async function telaDiarista(ctx, rota) {
       <nav class="abas" aria-label="Seções">
         ${ABAS.map(([k, r]) => html`<a href="#/diarista/${k}" class="${k === aba ? html`ativa` : ''}" ${k === aba ? html`aria-current="page"` : ''}>${r}${k === 'pedidos' && painel.pendentes.length ? html` <span class="contador">${painel.pendentes.length}</span>` : ''}</a>`)}
       </nav>
+      ${abaixoDoPiso ? html`<p class="cartao aviso-texto">O mínimo da plataforma mudou para diária ${moeda(painel.piso.diaria)} e meia diária ${moeda(painel.piso.meiaDiaria)}. Ajuste os seus preços na aba <a href="#/diarista/precos">Preços</a>.</p>` : ''}
       <section class="pilha">${(conteudo[aba] ?? conteudo.pedidos)()}</section>
-      ${ajuda('Seguro de acidentes pessoais em todo atendimento confirmado.', '#/ajuda?de=diarista')}`,
+      ${ajuda('Algum problema em um atendimento? A operação ouve as duas partes.', '#/ajuda?de=diarista')}`,
     ligar(raiz) {
       const agir = async (fn) => { e.erro = ''; e.okPrecos = ''; e.okAvaliacao = ''; try { await fn(); } catch (falha) { e.erro = falha.message; } ctx.redesenhar(); };
       ligarAvaliacoes(raiz, (p) => agir(async () => { await ctx.casos.avaliarCliente({ ...p, diaristaId: id }); e.okAvaliacao = 'Avaliação enviada.'; }));

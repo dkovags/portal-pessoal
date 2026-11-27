@@ -9,3 +9,5 @@ export * from './ocorrencia.js';
 export * from './indicadores.js';
 export * from './acesso.js';
 export * from './avaliacao.js';
+export * from './documentos.js';
+export * from './pacote.js';

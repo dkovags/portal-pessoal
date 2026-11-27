@@ -35,15 +35,17 @@ export function verificarJanela(inicio, fim, parametros = PARAMETROS_PADRAO) {
 }
 
 /**
- * Política de cancelamento pelo cliente.
- * @param {{inicio:Date, totalCliente:number, recebeDiarista:number}} atendimento
+ * Política de cancelamento pelo cliente. Vale a política gravada na reserva (a vigente quando
+ * ela foi feita); sem ela, a vigente agora.
+ * @param {{inicio:Date, totalCliente:number, recebeDiarista:number, politicaCancelamento?:{horasGratuitas:number, percentualDevidoDiarista:number}}} atendimento
  * @param {Date} agora
  */
 export function calcularCancelamentoPeloCliente(atendimento, agora, parametros = PARAMETROS_PADRAO) {
+  const politica = atendimento.politicaCancelamento ?? parametros.cancelamento;
   const horas = (atendimento.inicio.getTime() - agora.getTime()) / 36e5;
-  if (horas >= parametros.cancelamento.horasGratuitas) {
+  if (horas >= politica.horasGratuitas) {
     return { gratuito: true, reembolsoCliente: atendimento.totalCliente, devidoDiarista: 0 };
   }
-  const devidoDiarista = percentualDe(atendimento.recebeDiarista, parametros.cancelamento.percentualDevidoDiarista);
+  const devidoDiarista = percentualDe(atendimento.recebeDiarista, politica.percentualDevidoDiarista);
   return { gratuito: false, reembolsoCliente: atendimento.totalCliente - devidoDiarista, devidoDiarista };
 }

@@ -9,7 +9,9 @@ create table diacerto.clientes (
   id text primary key,
   nome text not null,
   endereco text not null,
-  regiao text not null
+  regiao text not null,
+  celular text check (celular ~ '^\d{10,11}$'),
+  criado_em timestamptz not null default now()
 );
 
 create table diacerto.diaristas (
@@ -20,8 +22,9 @@ create table diacerto.diaristas (
   regioes text[] not null default '{}',
   tarefas text[] not null default '{}',
   nao_faz text not null default '',
-  diaria integer not null check (diaria >= 13000),
-  meia_diaria integer not null check (meia_diaria >= 7000),
+  -- o piso de verdade é parâmetro da operação (diacerto.parametros); aqui fica só um mínimo absoluto
+  diaria integer not null check (diaria >= 5000),
+  meia_diaria integer not null check (meia_diaria >= 3000),
   transporte integer not null default 0 check (transporte >= 0),
   desconto_pacote numeric(4,3) not null default 0 check (desconto_pacote between 0 and 0.30),
   verificacao_data text,
@@ -49,6 +52,9 @@ create table diacerto.avaliacoes (
   check (length(texto) <= 300)
 );
 
+-- Pacote comprado de uma vez, com o preço de cada atendimento travado na compra. O saldo
+-- não é gravado: sai dos atendimentos ligados (atendimentos.pacote_id). A coluna "usados" é
+-- da versão anterior e não é mais usada.
 create table diacerto.pacotes (
   id text primary key,
   cliente_id text not null references diacerto.clientes(id),
@@ -56,8 +62,30 @@ create table diacerto.pacotes (
   total smallint not null check (total > 0),
   usados smallint not null default 0,
   validade timestamptz not null,
-  check (usados between 0 and total)
+  duracao text not null default 'diaria' check (duracao in ('diaria', 'meiaDiaria')),
+  servico integer not null,
+  transporte integer not null,
+  taxa_cliente integer not null,
+  comissao integer not null,
+  total_unitario integer not null,
+  recebe_diarista integer not null,
+  receita_plataforma integer not null,
+  total_pago integer not null,
+  metodo text not null default 'pix' check (metodo in ('pix', 'cartao')),
+  autorizacao text,
+  comprado_em timestamptz not null default now(),
+  status text not null default 'ativo' check (status in ('ativo', 'encerrado')),
+  encerrado_em timestamptz,
+  reembolso integer not null default 0 check (reembolso >= 0),
+  politica_cancelamento jsonb,
+  check (usados between 0 and total),
+  constraint pacotes_valores_check check (servico >= 0 and transporte >= 0 and taxa_cliente >= 0 and comissao >= 0
+    and total_unitario = servico + transporte + taxa_cliente and recebe_diarista = servico - comissao + transporte
+    and receita_plataforma = comissao + taxa_cliente and total_pago = total_unitario * total and reembolso <= total_pago),
+  constraint pacotes_encerramento_check check (status = 'ativo' or encerrado_em is not null)
 );
+
+create index pacotes_cliente_id_idx on diacerto.pacotes (cliente_id);
 
 create table diacerto.atendimentos (
   id text primary key,
@@ -84,6 +112,10 @@ create table diacerto.atendimentos (
   receita_plataforma integer not null check (receita_plataforma >= 0),
   remarcacoes smallint not null default 0 check (remarcacoes between 0 and 1),
   criado_em timestamptz not null default now(),
+  pacote_id text references diacerto.pacotes(id),
+  taxa_cancelamento integer not null default 0 check (taxa_cancelamento >= 0),
+  politica_cancelamento jsonb,
+  constraint atendimentos_pacote_check check ((modalidade = 'pacote') = (pacote_id is not null)),
   check (hora_inicio >= 7 and hora_fim <= 20 and hora_fim > hora_inicio),
   check (total_cliente = servico + transporte + taxa_cliente - cupom),
   check (recebe_diarista = servico - comissao + transporte),
@@ -93,6 +125,8 @@ create table diacerto.atendimentos (
 create index on diacerto.atendimentos (cliente_id);
 
 create index on diacerto.atendimentos (diarista_id, data);
+
+create index atendimentos_pacote_id_idx on diacerto.atendimentos (pacote_id);
 
 create table diacerto.cupons (
   codigo text primary key check (codigo = upper(codigo)),
@@ -172,3 +206,25 @@ create table diacerto.avaliacoes_cliente (
   criada_em timestamptz not null default now()
 );
 alter table diacerto.avaliacoes add foreign key (atendimento_id) references diacerto.atendimentos(id);
+
+-- Aceite dos termos e da política de privacidade, por versão (prova do consentimento).
+create table diacerto.aceites (
+  email text not null check (email = lower(email)),
+  documento text not null check (documento in ('termos-cliente', 'termos-profissional', 'privacidade')),
+  versao text not null,
+  aceito_em timestamptz not null default now(),
+  primary key (email, documento, versao)
+);
+
+-- Parâmetros comerciais com vigência: cada linha é uma versão; vale a mais recente já em vigor.
+create table diacerto.parametros (
+  id bigint generated always as identity primary key,
+  vigente_desde timestamptz not null default now(),
+  valores jsonb not null,
+  motivo text not null check (length(motivo) between 10 and 500),
+  alterado_por text not null
+);
+
+insert into diacerto.parametros (valores, motivo, alterado_por) values (
+  '{"comissao":{"avulso":0.2,"pacote":0.15},"taxaCliente":{"avulso":1500,"pacote":1200},"piso":{"diaria":13000,"meiaDiaria":7000},"cancelamento":{"horasGratuitas":24,"percentualDevidoDiarista":0.5},"pacote":{"quantidade":4,"descontoMaximo":0.3,"validadeMeses":3}}',
+  'Valores iniciais do piloto (documento de análise crítica).', 'sistema');

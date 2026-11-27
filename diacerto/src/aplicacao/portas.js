@@ -12,7 +12,19 @@
  * @property {{nota:number, texto:string, autor:string, mes:string}[]} avaliacoes
  */
 
-/** @typedef {{id:string, nome:string, endereco:string, regiao:string}} Cliente */
+/** @typedef {{id:string, nome:string, endereco:string, regiao:string, celular?:string|null}} Cliente */
+/**
+ * @typedef {object} RepositorioAceites
+ * @property {(email:string) => Promise<{documento:string, versao:string, aceitoEm:Date}[]>} listar
+ * @property {(a:{email:string, documento:string, versao:string, aceitoEm:Date}) => Promise<void>} registrar
+ */
+/**
+ * Versões dos parâmetros comerciais (só a parte editável), da mais recente para a mais antiga.
+ * @typedef {object} RepositorioParametros
+ * @property {() => Promise<{valores:any, motivo:string, alteradoPor:string, vigenteDesde:Date}|null>} vigente
+ * @property {() => Promise<{valores:any, motivo:string, alteradoPor:string, vigenteDesde:Date}[]>} historico
+ * @property {(v:{valores:any, motivo:string, alteradoPor:string, vigenteDesde:Date}) => Promise<void>} salvar
+ */
 /** @typedef {{email:string, papel:'operacao'|'cliente'|'diarista', clienteId:string|null, diaristaId:string|null}} Perfil */
 /**
  * @typedef {object} RepositorioPerfis
@@ -68,13 +80,19 @@
  */
 
 /**
+ * Pacote comprado (RF11). O saldo não é guardado: sai dos atendimentos ligados a ele (pacoteId).
  * @typedef {object} Pacote
  * @property {string} id @property {string} clienteId @property {string} diaristaId
- * @property {number} total @property {number} usados @property {Date} validade
+ * @property {'diaria'|'meiaDiaria'} duracao @property {number} total quantidade de atendimentos
+ * @property {ReturnType<import('../dominio/precificacao.js').calcularAtendimento>} unitario preço travado na compra
+ * @property {number} totalPago @property {string} metodo @property {Date} compradoEm @property {Date} validade
+ * @property {'ativo'|'encerrado'} status @property {string|null} autorizacao
+ * @property {Date|null} encerradoEm @property {number} reembolso
  */
 /**
  * @typedef {object} RepositorioPacotes
- * @property {(clienteId:string, diaristaId:string) => Promise<Pacote|null>} obterAtivo
+ * @property {(id:string) => Promise<Pacote|null>} obter
+ * @property {(clienteId:string) => Promise<Pacote[]>} listarPorCliente
  * @property {(p:Pacote) => Promise<void>} salvar
  */
 

@@ -22,15 +22,17 @@ test('remarcação: uma vez, até 24h antes, volta para aceite', () => {
 test('remarcar não cobra de novo nem gasta outro atendimento do pacote', async () => {
   const { casos, infra } = montar();
   const [, d1, d2] = await livresDe(casos, 'd1'); // o 1º dia livre fica a menos de 24h
+  const saldo = async () => (await casos.meusPacotes({ clienteId: 'c1' }))[0].saldo;
+  const antes = await saldo();
   const a = await casos.solicitarReserva({ clienteId: 'c1', diaristaId: 'd1', data: d1, horaInicio: 8, duracao: 'diaria', modalidade: 'pacote', metodo: 'pix' });
   await casos.responderPedido({ atendimentoId: a.id, diaristaId: 'd1', aceitar: true });
-  const usadosAntes = (await infra.pacotes.obterAtivo('c1', 'd1')).usados;
+  assert.equal(await saldo(), antes - 1);
   const r = await casos.remarcarAtendimento({ atendimentoId: a.id, clienteId: 'c1', data: d2, horaInicio: 8 });
   assert.equal(r.status, STATUS.SOLICITADO);
   assert.equal(chaveDia(r.inicio), d2);
   await casos.responderPedido({ atendimentoId: a.id, diaristaId: 'd1', aceitar: true });
-  assert.equal(infra.pagamento.registro.filter((x) => x.tipo === 'autorizacao').length, 1);
-  assert.equal((await infra.pacotes.obterAtivo('c1', 'd1')).usados, usadosAntes);
+  assert.equal(infra.pagamento.registro.filter((x) => x.tipo === 'autorizacao').length, 0, 'o pacote já foi pago na compra');
+  assert.equal(await saldo(), antes - 1);
   await assert.rejects(casos.remarcarAtendimento({ atendimentoId: a.id, clienteId: 'c2', data: d2, horaInicio: 8 }), { codigo: 'NAO_ENCONTRADO' });
 });
 
@@ -56,4 +58,15 @@ test('meus atendimentos: recentes e próximos, com o nome da outra parte', async
   const daDiarista = await casos.meusAtendimentos({ diaristaId: 'd1' });
   assert.ok(daDiarista.some((x) => x.com === 'Carlos M.'));
   assert.equal(reais(1), 100);
+});
+
+test('remarcação avulsa recusada devolve a cobrança já autorizada', async () => {
+  const { casos, infra } = montar();
+  const [, d1, d2] = await livresDe(casos, 'd3');
+  const a = await casos.solicitarReserva({ clienteId: 'c2', diaristaId: 'd3', data: d1, horaInicio: 10, duracao: 'diaria', modalidade: 'avulso', metodo: 'pix' });
+  await casos.responderPedido({ atendimentoId: a.id, diaristaId: 'd3', aceitar: true });
+  await casos.remarcarAtendimento({ atendimentoId: a.id, clienteId: 'c2', data: d2, horaInicio: 10 });
+  await casos.responderPedido({ atendimentoId: a.id, diaristaId: 'd3', aceitar: false });
+  const estorno = infra.pagamento.registro.at(-1);
+  assert.deepEqual([estorno.tipo, estorno.valor], ['estorno', a.valores.totalCliente]);
 });

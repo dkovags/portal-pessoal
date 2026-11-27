@@ -2,7 +2,7 @@ import { html } from '../html.js';
 import { cabecalho, erro } from '../componentes.js';
 import { moeda, lerReais, percentual } from '../formatos.js';
 import {
-  ITENS_VERIFICACAO, TAREFAS_CATALOGO, REGIOES_PILOTO, calcularAtendimento, PARAMETROS_PADRAO,
+  ITENS_VERIFICACAO, TAREFAS_CATALOGO, REGIOES_PILOTO, calcularAtendimento, aplicarParametros, PARAMETROS_PADRAO,
 } from '../../dominio/index.js';
 
 const PASSOS = ['Dados', 'Serviços', 'Preços', 'Agenda', 'Verificação', 'Revisão'];
@@ -36,9 +36,11 @@ export async function telaCadastro(ctx, rota) {
       <a class="btn contorno" href="#/operacao">Voltar à operação</a>` };
   }
 
+  // simulação com as regras comerciais em vigor (comissão, taxa, piso)
+  const parametros = passo === 3 ? aplicarParametros(PARAMETROS_PADRAO, (await ctx.casos.parametrosVigentes()).valores) : PARAMETROS_PADRAO;
   const sim = c.precos.diaria ? {
-    avulso: calcularAtendimento({ servico: c.precos.diaria, transporte: c.precos.transporte, modalidade: 'avulso' }),
-    pacote: calcularAtendimento({ servico: c.precos.diaria, transporte: c.precos.transporte, modalidade: 'pacote', descontoPacote: c.precos.descontoPacote }),
+    avulso: calcularAtendimento({ servico: c.precos.diaria, transporte: c.precos.transporte, modalidade: 'avulso' }, parametros),
+    pacote: calcularAtendimento({ servico: c.precos.diaria, transporte: c.precos.transporte, modalidade: 'pacote', descontoPacote: c.precos.descontoPacote }, parametros),
   } : null;
 
   const corpo = {
@@ -62,7 +64,7 @@ export async function telaCadastro(ctx, rota) {
         <label>Transporte (R$)<input name="transporte" inputmode="decimal" value="${reaisCampo(c.precos.transporte)}"></label>
         <label>Desconto no pacote (%)<input name="descontoPacote" inputmode="numeric" value="${Math.round(c.precos.descontoPacote * 100)}"></label>
       </div>
-      <p class="mudo mini">Mínimo: diária ${moeda(PARAMETROS_PADRAO.piso.diaria)} e meia diária ${moeda(PARAMETROS_PADRAO.piso.meiaDiaria)}. Desconto do pacote até ${percentual(PARAMETROS_PADRAO.pacote.descontoMaximo)}.</p>
+      <p class="mudo mini">Mínimo: diária ${moeda(parametros.piso.diaria)} e meia diária ${moeda(parametros.piso.meiaDiaria)}. Desconto do pacote até ${percentual(parametros.pacote.descontoMaximo)}. Comissão do DiaCerto: ${percentual(parametros.comissao.avulso)} no avulso e ${percentual(parametros.comissao.pacote)} no pacote.</p>
       ${sim ? html`<div class="cartao suave pilha-curta pequeno">
         <div class="entre"><span>Recebe na diária avulsa</span><strong>${moeda(sim.avulso.recebeDiarista)}</strong></div>
         <div class="entre"><span>Recebe na diária do pacote</span><strong>${moeda(sim.pacote.recebeDiarista)}</strong></div>

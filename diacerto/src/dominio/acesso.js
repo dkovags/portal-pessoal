@@ -19,7 +19,13 @@ export function novoPerfil(p) {
     clienteId: p.papel === 'cliente' ? p.clienteId : null, diaristaId: p.papel === 'diarista' ? p.diaristaId : null };
 }
 
-/** @param {{nome:string, endereco:string, regiao:string}} d */
+export function normalizarCelular(celular) {
+  const c = String(celular ?? '').replace(/\D/g, '');
+  if (!/^\d{10,11}$/.test(c)) throw new RegraDeNegocioViolada('CELULAR', 'Informe o celular com DDD.');
+  return c;
+}
+
+/** @param {{nome:string, endereco:string, regiao:string, celular?:string|null}} d */
 export function novoCliente(d) {
   const nome = String(d.nome ?? '').trim();
   const endereco = String(d.endereco ?? '').trim();
@@ -27,5 +33,5 @@ export function novoCliente(d) {
   if (nome.length < 3) throw new RegraDeNegocioViolada('NOME', 'Informe o nome do cliente.');
   if (endereco.length < 5) throw new RegraDeNegocioViolada('ENDERECO', 'Informe o endereço (quadra, bloco e apartamento).');
   if (!regiao) throw new RegraDeNegocioViolada('REGIAO', 'Informe a região.');
-  return { id: d.id, nome: nome.slice(0, 120), endereco: endereco.slice(0, 200), regiao };
+  return { id: d.id, nome: nome.slice(0, 120), endereco: endereco.slice(0, 200), regiao, celular: d.celular ? normalizarCelular(d.celular) : null };
 }

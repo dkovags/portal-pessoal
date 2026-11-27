@@ -32,6 +32,8 @@ export function atendimentoDeLinha(l) {
     duracao: l.duracao, modalidade: l.modalidade, status: l.status, metodo: l.metodo,
     observacoes: l.observacoes ?? '', codigoConfirmacao: l.codigo_confirmacao,
     autorizacao: l.autorizacao ?? undefined, concluidoEm: l.concluido_em ? new Date(l.concluido_em) : undefined, remarcacoes: l.remarcacoes ?? 0,
+    pacoteId: l.pacote_id ?? null, taxaCancelamento: l.taxa_cancelamento ?? 0,
+    ...(l.politica_cancelamento ? { politicaCancelamento: l.politica_cancelamento } : {}),
     valores: {
       servico: l.servico, transporte: l.transporte, taxaCliente: l.taxa_cliente, cupom: l.cupom, comissao: l.comissao,
       totalCliente: l.total_cliente, recebeDiarista: l.recebe_diarista, receitaPlataforma: l.receita_plataforma,
@@ -47,13 +49,33 @@ export function linhaDeAtendimento(a) {
     status: a.status, metodo: a.metodo ?? 'pix', observacoes: a.observacoes ?? '',
     codigo_confirmacao: a.codigoConfirmacao, autorizacao: a.autorizacao ?? null,
     concluido_em: a.concluidoEm ? new Date(a.concluidoEm).toISOString() : null, remarcacoes: a.remarcacoes ?? 0,
+    pacote_id: a.pacoteId ?? null, taxa_cancelamento: a.taxaCancelamento ?? 0, politica_cancelamento: a.politicaCancelamento ?? null,
     servico: v.servico, transporte: v.transporte, taxa_cliente: v.taxaCliente, cupom: v.cupom, comissao: v.comissao,
     total_cliente: v.totalCliente, recebe_diarista: v.recebeDiarista, receita_plataforma: v.receitaPlataforma,
   };
 }
 
-export const pacoteDeLinha = (l) => ({ id: l.id, clienteId: l.cliente_id, diaristaId: l.diarista_id, total: l.total, usados: l.usados, validade: new Date(l.validade) });
-export const linhaDePacote = (p) => ({ id: p.id, cliente_id: p.clienteId, diarista_id: p.diaristaId, total: p.total, usados: p.usados, validade: new Date(p.validade).toISOString() });
+// O saldo do pacote não é gravado (sai dos atendimentos); a coluna antiga "usados" não é mais usada.
+export const pacoteDeLinha = (l) => ({
+  id: l.id, clienteId: l.cliente_id, diaristaId: l.diarista_id, duracao: l.duracao, total: l.total,
+  unitario: { servico: l.servico, transporte: l.transporte, taxaCliente: l.taxa_cliente, cupom: 0, comissao: l.comissao,
+    totalCliente: l.total_unitario, recebeDiarista: l.recebe_diarista, receitaPlataforma: l.receita_plataforma },
+  totalPago: l.total_pago, metodo: l.metodo, autorizacao: l.autorizacao ?? null, compradoEm: new Date(l.comprado_em),
+  validade: new Date(l.validade), status: l.status, encerradoEm: l.encerrado_em ? new Date(l.encerrado_em) : null, reembolso: l.reembolso ?? 0,
+  ...(l.politica_cancelamento ? { politicaCancelamento: l.politica_cancelamento } : {}),
+});
+export const linhaDePacote = (p) => ({
+  id: p.id, cliente_id: p.clienteId, diarista_id: p.diaristaId, duracao: p.duracao, total: p.total,
+  servico: p.unitario.servico, transporte: p.unitario.transporte, taxa_cliente: p.unitario.taxaCliente, comissao: p.unitario.comissao,
+  total_unitario: p.unitario.totalCliente, recebe_diarista: p.unitario.recebeDiarista, receita_plataforma: p.unitario.receitaPlataforma,
+  total_pago: p.totalPago, metodo: p.metodo, autorizacao: p.autorizacao ?? null, comprado_em: new Date(p.compradoEm).toISOString(),
+  validade: new Date(p.validade).toISOString(), status: p.status, encerrado_em: p.encerradoEm ? new Date(p.encerradoEm).toISOString() : null,
+  reembolso: p.reembolso ?? 0, politica_cancelamento: p.politicaCancelamento ?? null,
+});
+
+export const parametroDeLinha = (l) => ({
+  id: Number(l.id), vigenteDesde: new Date(l.vigente_desde), valores: l.valores, motivo: l.motivo, alteradoPor: l.alterado_por,
+});
 
 export const candidaturaDeLinha = (l) => ({
   id: l.id, nome: l.nome, celular: l.celular, status: l.status, regioes: l.regioes ?? [], tarefas: l.tarefas ?? [],

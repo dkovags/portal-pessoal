@@ -25,7 +25,7 @@ export async function telaTrabalhe(ctx) {
     html: html`
       ${cabecalho('Trabalhe com o DiaCerto', '#/')}
       <section class="pilha-curta">
-        <p class="mudo">Você define seu preço, seus dias e seus horários. Recebe no Pix até o dia seguinte ao atendimento e tem seguro de acidentes pessoais em todo atendimento confirmado.</p>
+        <p class="mudo">Você define seu preço, seus dias e seus horários, e aceita só os pedidos que quiser. Recebe pela plataforma depois de cada atendimento concluído.</p>
       </section>
       <section class="cartao suave pilha-curta">
         <strong class="pequeno">Como é o cadastro</strong>
